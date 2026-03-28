@@ -489,35 +489,36 @@ function handleChartTap(e) {
 async function fetchPrices() {
   try {
     document.getElementById('mktCount').textContent = 'LOADING...';
-    const [r1, r2] = await Promise.all([
-      fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&price_change_percentage=24h').then(r=>r.json()),
-      fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=2&price_change_percentage=24h').then(r=>r.json()),
-    ]);
-    const coins = [...(Array.isArray(r1)?r1:[]), ...(Array.isArray(r2)?r2:[])].filter(c => c && c.id);
-    if (!coins.length) throw new Error('No data');
+    const r1 = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&price_change_percentage=24h').then(r=>r.json());
+    const coins = (Array.isArray(r1) ? r1 : []).filter(c => c && c.id);
+    
+    // Detect rate limit
+    const isRateLimited = !coins.length && r1?.status?.error_code === 429;
+    if (isRateLimited) throw new Error('RATE_LIMITED');
+    if (!coins.length) throw new Error('No data returned');
+
     TOKENS = coins.map(c => ({
       id: c.id, symbol: c.symbol.toUpperCase(), name: c.name,
       price: c.current_price || 0, change: c.price_change_percentage_24h || 0,
       high: c.high_24h || 0, low: c.low_24h || 0, rank: c.market_cap_rank || 999,
     }));
     document.getElementById('mktCount').textContent = TOKENS.length + ' MARKETS';
-    // Update activeToken price silently without redrawing chart
     if (activeToken) {
       const updated = TOKENS.find(t => t.id === activeToken.id);
-      if (updated) {
-        activeToken = updated;
-        updateChartHeader();
-      }
+      if (updated) { activeToken = updated; updateChartHeader(); }
     }
     renderList();
   } catch(e) {
-    document.getElementById('mktCount').textContent = 'RETRY';
+    const isRateLimit = e.message === 'RATE_LIMITED';
+    document.getElementById('mktCount').textContent = isRateLimit ? 'RATE LIMITED' : 'ERROR';
     document.getElementById('tokenList').innerHTML = `
       <div class="empty">
         <div class="empty-icon">⚠</div>
-        ${e.message}<br><br>
-        <span onclick="fetchPrices()" style="color:var(--accent);cursor:pointer;border:1px solid var(--accent);padding:6px 14px;display:inline-block;">↺ RETRY</span>
+        <div style="color:var(--accent3);margin-bottom:8px;">${isRateLimit ? 'RATE LIMITED' : 'LOAD FAILED'}</div>
+        <div style="font-size:9px;color:var(--text3);margin-bottom:14px;">${isRateLimit ? 'Too many requests.\nAuto-retrying in 60s...' : e.message}</div>
+        <span onclick="fetchPrices()" style="color:var(--accent);cursor:pointer;border:1px solid var(--accent);padding:6px 14px;display:inline-block;">↺ RETRY NOW</span>
       </div>`;
+    if (isRateLimit) setTimeout(fetchPrices, 60000);
   }
 }
 
@@ -624,27 +625,48 @@ async function generateChartData() {
   try {
     setLoad(10, 'CONNECTING TO BINANCE...');
 
-    // Animate progress while waiting
     let fakePct = 10;
     fakeTimer = setInterval(() => {
       if (fakePct < 75) { fakePct += 3; setLoad(fakePct); }
     }, 200);
 
-    const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`);
+    // Try Binance first
+    let raw = null;
+    try {
+      const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length) raw = data;
+      }
+    } catch(e) {}
+
+    // Fallback: Binance US
+    if (!raw) {
+      try {
+        setLoad(40, 'TRYING BINANCE US...');
+        const res = await fetch(`https://api.binance.us/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length) raw = data;
+        }
+      } catch(e) {}
+    }
+
     clearInterval(fakeTimer);
-    setLoad(80, 'PARSING CANDLES...');
-    if (!res.ok) throw new Error('Not on Binance');
-    const raw = await res.json();
-    if (!Array.isArray(raw) || !raw.length) throw new Error('No candle data');
-    setLoad(95, 'RENDERING...');
-    chartData = raw.map(c => ({
-      open:  parseFloat(c[1]),
-      high:  parseFloat(c[2]),
-      low:   parseFloat(c[3]),
-      close: parseFloat(c[4]),
-      vol:   parseFloat(c[5]),
-    }));
-    setLoad(100, 'DONE!');
+
+    if (raw) {
+      setLoad(90, 'RENDERING...');
+      chartData = raw.map(c => ({
+        open:  parseFloat(c[1]),
+        high:  parseFloat(c[2]),
+        low:   parseFloat(c[3]),
+        close: parseFloat(c[4]),
+        vol:   parseFloat(c[5]),
+      }));
+      setLoad(100, 'DONE!');
+    } else {
+      throw new Error('No data from Binance');
+    }
   } catch(e) {
     if (fakeTimer) clearInterval(fakeTimer);
     setLoad(100, 'USING SIMULATED DATA');
@@ -1017,7 +1039,7 @@ new ResizeObserver(drawChart).observe(document.querySelector('.chart-area'));
 
 // INIT
 fetchPrices();
-setInterval(fetchPrices, 30000);
+setInterval(fetchPrices, 60000);
 </script>
 </body>
 </html>
