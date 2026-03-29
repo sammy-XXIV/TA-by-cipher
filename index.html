@@ -919,7 +919,7 @@ async function generateChartData() {
   } catch(e) {
     if (fakeTimer) clearInterval(fakeTimer);
     setLoad(100, 'USING SIMULATED DATA');
-    showChartStatus('⚠ BINANCE UNAVAILABLE — Showing simulated data', 'var(--accent3)');
+    showChartStatus('⚠ ALL SOURCES UNAVAILABLE — Showing simulated data', 'var(--accent3)');
     const base = activeToken.price || 1, vol = base * 0.012;
     let price = base * (0.92 + Math.random() * 0.06);
     for (let i = 0; i < limit; i++) {
@@ -1723,4 +1723,3 @@ setInterval(fetchPrices, 60000);
 </script>
 </body>
 </html>
-
