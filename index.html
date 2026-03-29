@@ -508,166 +508,151 @@ function handleChartTap(e) {
   tooltip._timer = setTimeout(() => { tooltip.style.display = 'none'; }, 3000);
 }
 
-// FETCH PRICES — from Binance, Bybit, OKX directly + CoinGecko fallback for metadata
+// FETCH PRICES — from all exchanges simultaneously
 async function fetchPrices() {
   const btn = document.getElementById('refreshPriceBtn');
   if (btn) { btn.textContent='⟳'; btn.style.opacity='0.5'; btn.disabled=true; }
   try {
     document.getElementById('mktCount').textContent = 'LOADING...';
 
-    // Step 1: Get token list + metadata from CoinGecko (rank, name, id)
-    // But get prices from exchanges directly
+    // Run ALL fetches simultaneously — server proxy first for prices
+    const [cgRes, tickerRes, binanceRes, bybitRes, okxRes, hlRes, mexcRes] = await Promise.allSettled([
+      // CoinGecko — metadata
+      fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&price_change_percentage=24h').then(r=>r.json()),
+      // Server ticker proxy (no CORS)
+      fetch(`${SERVER}/tickers`).then(r=>r.json()),
+      // Binance direct
+      fetch('https://api.binance.com/api/v3/ticker/24hr').then(r=>r.json()),
+      // Bybit direct
+      fetch('https://api.bybit.com/v5/market/tickers?category=spot').then(r=>r.json()),
+      // OKX direct
+      fetch('https://www.okx.com/api/v5/market/tickers?instType=SPOT').then(r=>r.json()),
+      // Hyperliquid direct
+      fetch('https://api.hyperliquid.xyz/info', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'spotMetaAndAssetCtxs'})}).then(r=>r.json()),
+      // MEXC direct
+      fetch('https://www.mexc.com/open/api/v2/market/ticker').then(r=>r.json()),
+    ]);
+
+    // Parse CoinGecko
     let cgCoins = [];
-    try {
-      const r = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&price_change_percentage=24h').then(r=>r.json());
-      if (Array.isArray(r)) cgCoins = r.filter(c => c && c.id);
-    } catch(e) {}
+    if (cgRes.status === 'fulfilled' && Array.isArray(cgRes.value)) {
+      cgCoins = cgRes.value.filter(c => c && c.id);
+    }
 
-    // Step 2: Fetch real-time prices from all 3 exchanges simultaneously
-    let binancePrices = {}, bybitPrices = {}, okxPrices = {};
+    // Parse server ticker proxy (most reliable — no CORS)
+    let serverPrices = {};
+    if (tickerRes.status === 'fulfilled' && typeof tickerRes.value === 'object') {
+      serverPrices = tickerRes.value;
+    }
 
-    // Binance — fetch all tickers at once
-    try {
-      const r = await fetch('https://api.binance.com/api/v3/ticker/24hr').then(r=>r.json());
-      if (Array.isArray(r)) {
-        r.forEach(t => {
-          if (t.symbol.endsWith('USDT')) {
-            const sym = t.symbol.replace('USDT','');
-            binancePrices[sym] = {
-              price: parseFloat(t.lastPrice),
-              change: parseFloat(t.priceChangePercent),
-              high: parseFloat(t.highPrice),
-              low: parseFloat(t.lowPrice),
-            };
-          }
-        });
-      }
-    } catch(e) {}
-
-    // Bybit — fetch all tickers
-    try {
-      const r = await fetch('https://api.bybit.com/v5/market/tickers?category=spot').then(r=>r.json());
-      const list = r?.result?.list || [];
-      list.forEach(t => {
-        if (t.symbol.endsWith('USDT')) {
+    // Parse Binance direct
+    let binancePrices = {};
+    if (binanceRes.status === 'fulfilled' && Array.isArray(binanceRes.value)) {
+      binanceRes.value.forEach(t => {
+        if (t.symbol?.endsWith('USDT')) {
           const sym = t.symbol.replace('USDT','');
-          bybitPrices[sym] = {
-            price: parseFloat(t.lastPrice),
-            change: parseFloat(t.price24hPcnt) * 100,
-            high: parseFloat(t.highPrice24h),
-            low: parseFloat(t.lowPrice24h),
-          };
+          binancePrices[sym] = { price: parseFloat(t.lastPrice), change: parseFloat(t.priceChangePercent), high: parseFloat(t.highPrice), low: parseFloat(t.lowPrice) };
         }
       });
-    } catch(e) {}
+    }
 
-    // OKX — fetch all tickers
-    try {
-      const r = await fetch('https://www.okx.com/api/v5/market/tickers?instType=SPOT').then(r=>r.json());
-      const list = r?.data || [];
-      list.forEach(t => {
-        if (t.instId.endsWith('-USDT')) {
+    // Parse Bybit direct
+    let bybitPrices = {};
+    if (bybitRes.status === 'fulfilled') {
+      (bybitRes.value?.result?.list || []).forEach(t => {
+        if (t.symbol?.endsWith('USDT')) {
+          const sym = t.symbol.replace('USDT','');
+          bybitPrices[sym] = { price: parseFloat(t.lastPrice), change: parseFloat(t.price24hPcnt)*100, high: parseFloat(t.highPrice24h), low: parseFloat(t.lowPrice24h) };
+        }
+      });
+    }
+
+    // Parse OKX direct
+    let okxPrices = {};
+    if (okxRes.status === 'fulfilled') {
+      (okxRes.value?.data || []).forEach(t => {
+        if (t.instId?.endsWith('-USDT')) {
           const sym = t.instId.replace('-USDT','');
-          okxPrices[sym] = {
-            price: parseFloat(t.last),
-            change: ((parseFloat(t.last) - parseFloat(t.open24h)) / parseFloat(t.open24h)) * 100,
-            high: parseFloat(t.high24h),
-            low: parseFloat(t.low24h),
-          };
+          okxPrices[sym] = { price: parseFloat(t.last), change: ((parseFloat(t.last)-parseFloat(t.open24h))/parseFloat(t.open24h))*100, high: parseFloat(t.high24h), low: parseFloat(t.low24h) };
         }
       });
-    } catch(e) {}
+    }
 
-    // Hyperliquid — fetch all spot prices
+    // Parse Hyperliquid direct
     let hlPrices = {};
-    try {
-      const r = await fetch('https://api.hyperliquid.xyz/info', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({type: 'spotMetaAndAssetCtxs'})
-      }).then(r=>r.json());
-      const tokens = r?.[0]?.tokens || [];
-      const ctxs = r?.[1] || [];
-      tokens.forEach((t, i) => {
-        const sym = t.name.toUpperCase();
+    if (hlRes.status === 'fulfilled') {
+      const tokens = hlRes.value?.[0]?.tokens || [];
+      const ctxs = hlRes.value?.[1] || [];
+      tokens.forEach((t,i) => {
         const ctx = ctxs[i];
-        if (ctx && ctx.midPrice) {
-          hlPrices[sym] = {
-            price: parseFloat(ctx.midPrice),
-            change: 0, // HL doesn't give 24h change in this endpoint
-            high: parseFloat(ctx.midPrice) * 1.01,
-            low: parseFloat(ctx.midPrice) * 0.99,
-          };
+        if (ctx?.midPrice) {
+          const sym = t.name.toUpperCase();
+          hlPrices[sym] = { price: parseFloat(ctx.midPrice), change: 0, high: parseFloat(ctx.midPrice)*1.01, low: parseFloat(ctx.midPrice)*0.99 };
         }
       });
-    } catch(e) {}
+    }
 
-    // MEXC — fetch all spot tickers
+    // Parse MEXC direct
     let mexcPrices = {};
-    try {
-      const r = await fetch('https://www.mexc.com/open/api/v2/market/ticker', {headers:{'Content-Type':'application/json'}}).then(r=>r.json());
-      const list = r?.data || [];
-      list.forEach(t => {
-        if (t.symbol && t.symbol.endsWith('_USDT')) {
+    if (mexcRes.status === 'fulfilled') {
+      (mexcRes.value?.data || []).forEach(t => {
+        if (t.symbol?.endsWith('_USDT')) {
           const sym = t.symbol.replace('_USDT','');
-          mexcPrices[sym] = {
-            price: parseFloat(t.last),
-            change: parseFloat(t.priceChangePercent) || 0,
-            high: parseFloat(t.high),
-            low: parseFloat(t.low),
-          };
+          mexcPrices[sym] = { price: parseFloat(t.last), change: parseFloat(t.priceChangePercent)||0, high: parseFloat(t.high), low: parseFloat(t.low) };
         }
       });
-    } catch(e) {}
+    }
 
-    // Step 3: Build token list — use CoinGecko for metadata, exchange prices for price data
+    // Build token list — server prices take priority
     if (cgCoins.length) {
       TOKENS = cgCoins.map(c => {
         const sym = c.symbol.toUpperCase();
-        // Collect available exchange prices including Hyperliquid and MEXC
-        const prices = [binancePrices[sym], bybitPrices[sym], okxPrices[sym], hlPrices[sym], mexcPrices[sym]].filter(p => p && p.price > 0);
-        
+        // Server proxy prices take priority, then direct exchange prices
         let price, change, high, low, source;
-        if (prices.length > 0) {
-          price  = prices.reduce((s,p) => s+p.price,  0) / prices.length;
-          change = prices.filter(p=>p.change!==0).reduce((s,p,_,a) => s+p.change/a.length, 0) || c.price_change_percentage_24h || 0;
-          high   = Math.max(...prices.map(p => p.high));
-          low    = Math.min(...prices.map(p => p.low));
-          source = `${prices.length} exchange${prices.length>1?'s':''}`;
+        if (serverPrices[sym] && serverPrices[sym].price > 0) {
+          const sp = serverPrices[sym];
+          price = sp.price; change = sp.change; high = sp.high; low = sp.low;
+          source = `server (${sp.sources} exchanges)`;
         } else {
-          price  = c.current_price || 0;
-          change = c.price_change_percentage_24h || 0;
-          high   = c.high_24h || 0;
-          low    = c.low_24h || 0;
-          source = 'coingecko';
+          const prices = [binancePrices[sym], bybitPrices[sym], okxPrices[sym], hlPrices[sym], mexcPrices[sym]].filter(p => p && p.price > 0);
+          if (prices.length > 0) {
+            price  = prices.reduce((s,p)=>s+p.price,0)/prices.length;
+            change = prices.filter(p=>p.change!==0).reduce((s,p,_,a)=>s+p.change/a.length,0) || c.price_change_percentage_24h || 0;
+            high   = Math.max(...prices.map(p=>p.high));
+            low    = Math.min(...prices.map(p=>p.low));
+            source = `${prices.length} exchange${prices.length>1?'s':''}`;
+          } else {
+            price=c.current_price||0; change=c.price_change_percentage_24h||0;
+            high=c.high_24h||0; low=c.low_24h||0; source='coingecko';
+          }
         }
-
-        return {
-          id: c.id, symbol: sym, name: c.name,
-          price, change, high, low,
-          rank: c.market_cap_rank || 999,
-          priceSource: source,
-        };
+        return { id:c.id, symbol:sym, name:c.name, price, change, high, low, rank:c.market_cap_rank||999, priceSource:source };
       });
+    } else if (Object.keys(serverPrices).length) {
+      // No CoinGecko — build from server prices
+      TOKENS = Object.entries(serverPrices).slice(0,100).map(([sym,p],i) => ({
+        id:sym.toLowerCase(), symbol:sym, name:sym,
+        price:p.price, change:p.change, high:p.high, low:p.low,
+        rank:i+1, priceSource:'server',
+      }));
     } else if (Object.keys(binancePrices).length) {
-      // No CoinGecko — build from Binance alone
-      TOKENS = Object.entries(binancePrices).map(([sym, p], i) => ({
-        id: sym.toLowerCase(), symbol: sym, name: sym,
-        price: p.price, change: p.change, high: p.high, low: p.low,
-        rank: i+1, priceSource: 'binance',
-      })).sort((a,b) => b.price - a.price).slice(0, 100);
+      TOKENS = Object.entries(binancePrices).map(([sym,p],i) => ({
+        id:sym.toLowerCase(), symbol:sym, name:sym,
+        price:p.price, change:p.change, high:p.high, low:p.low,
+        rank:i+1, priceSource:'binance',
+      })).sort((a,b)=>b.price-a.price).slice(0,100);
     } else {
-      throw new Error('All price sources failed');
+      throw new Error('All price sources failed — check your connection');
     }
 
+    const hasServer = Object.keys(serverPrices).length > 0;
     const activeSources = [
+      hasServer ? 'SERVER' : null,
       Object.keys(binancePrices).length ? 'BINANCE' : null,
       Object.keys(bybitPrices).length ? 'BYBIT' : null,
       Object.keys(okxPrices).length ? 'OKX' : null,
-      Object.keys(hlPrices).length ? 'HYPERLIQUID' : null,
-      Object.keys(mexcPrices).length ? 'MEXC' : null,
     ].filter(Boolean);
-    const sourceSummary = activeSources.length >= 3 ? `${activeSources.length}-EXCHANGE AVG` : activeSources.join('+') || 'COINGECKO';
+    const sourceSummary = hasServer ? 'SERVER PROXY' : activeSources.length >= 2 ? `${activeSources.length}-EXCHANGE AVG` : activeSources.join('+') || 'COINGECKO';
 
     document.getElementById('mktCount').textContent = `${TOKENS.length} MARKETS · ${sourceSummary}`;
     if (btn) { btn.textContent='↺'; btn.style.opacity='1'; btn.disabled=false; }
@@ -806,19 +791,34 @@ async function generateChartData() {
       return fetch(url, {...opts, signal: ctrl.signal}).finally(() => clearTimeout(timer));
     };
 
-    // 1. Try Binance
+    // Fetch candles via Render server proxy (no CORS issues)
     try {
-      const res = await fetchT(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`);
+      setLoad(20, 'FETCHING FROM SERVER...');
+      const res = await fetchT(`${SERVER}/candles?symbol=${activeToken.symbol}&interval=${interval}&limit=${limit}`);
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data) && data.length) { raw = data; dataFrom = 'BINANCE'; }
+        if (data.candles && data.candles.length) {
+          raw = data.candles.map(c => [null, c.o, c.h, c.l, c.c, c.v]);
+          dataFrom = data.source;
+        }
       }
     } catch(e) {}
 
-    // 2. Try Bybit
+    // Fallback: try direct exchanges (works on some networks)
     if (!raw) {
       try {
-        setLoad(35, 'TRYING BYBIT...');
+        setLoad(45, 'TRYING BINANCE DIRECT...');
+        const res = await fetchT(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length) { raw = data; dataFrom = 'BINANCE'; }
+        }
+      } catch(e) {}
+    }
+
+    if (!raw) {
+      try {
+        setLoad(65, 'TRYING BYBIT DIRECT...');
         const bybitInterval = {'1h':'60','4h':'240','1d':'D','1w':'W'}[interval]||'60';
         const res = await fetchT(`https://api.bybit.com/v5/market/kline?category=spot&symbol=${symbol}&interval=${bybitInterval}&limit=${limit}`);
         if (res.ok) {
@@ -827,73 +827,6 @@ async function generateChartData() {
           if (Array.isArray(list) && list.length) {
             raw = list.reverse().map(c => [null,c[1],c[2],c[3],c[4],c[5]]);
             dataFrom = 'BYBIT';
-          }
-        }
-      } catch(e) {}
-    }
-
-    // 3. Try OKX
-    if (!raw) {
-      try {
-        setLoad(55, 'TRYING OKX...');
-        const okxSymbol = activeToken.symbol + '-USDT';
-        const okxInterval = {'1h':'1H','4h':'4H','1d':'1D','1w':'1W'}[interval]||'1H';
-        const res = await fetchT(`https://www.okx.com/api/v5/market/candles?instId=${okxSymbol}&bar=${okxInterval}&limit=${limit}`);
-        if (res.ok) {
-          const data = await res.json();
-          const list = data?.data;
-          if (Array.isArray(list) && list.length) {
-            raw = list.reverse().map(c => [null,c[1],c[2],c[3],c[4],c[5]]);
-            dataFrom = 'OKX';
-          }
-        }
-      } catch(e) {}
-    }
-
-    // 4. Try Hyperliquid
-    if (!raw) {
-      try {
-        setLoad(70, 'TRYING HYPERLIQUID...');
-        const hlInterval = {'1h':60,'4h':240,'1d':1440,'1w':10080}[interval]||60;
-        const res = await fetchT('https://api.hyperliquid.xyz/info', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({
-            type: 'candleSnapshot',
-            req: {
-              coin: activeToken.symbol,
-              interval: `${hlInterval}m`,
-              startTime: Date.now() - limit * hlInterval * 60 * 1000,
-              endTime: Date.now()
-            }
-          })
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data) && data.length) {
-            raw = data.map(c => [null, c.o, c.h, c.l, c.c, c.v]);
-            dataFrom = 'HYPERLIQUID';
-          }
-        }
-      } catch(e) {}
-    }
-
-    // 5. Try MEXC
-    if (!raw) {
-      try {
-        setLoad(82, 'TRYING MEXC...');
-        const mexcInterval = {'1h':'Min60','4h':'Hour4','1d':'Day1','1w':'Week1'}[interval]||'Min60';
-        const mexcSymbol = activeToken.symbol + '_USDT';
-        const res = await fetchT(`https://contract.mexc.com/api/v1/contract/kline/${mexcSymbol}?interval=${mexcInterval}&limit=${limit}`);
-        if (res.ok) {
-          const data = await res.json();
-          const d = data?.data;
-          if (d && Array.isArray(d.time) && d.time.length) {
-            raw = d.time.map((_, i) => [
-              null,
-              d.open[i], d.high[i], d.low[i], d.close[i], d.vol[i]
-            ]);
-            dataFrom = 'MEXC';
           }
         }
       } catch(e) {}
@@ -1217,69 +1150,35 @@ async function runAnalysis() {
     }
   },1800);
 
-  // Fetch FRESH candles directly from Binance for analysis
-  // This ensures AI always uses latest data regardless of chart age
+  // Fetch FRESH candles via server proxy for analysis
   let analysisChartData = chartData;
   let usingSimulated = false;
-  let dataSource = 'BINANCE (LIVE)';
+  let dataSource = 'SERVER PROXY';
   try {
-    const symbol = activeToken.symbol + 'USDT';
     const intervalMap = {'1H':'1h','4H':'4h','1D':'1d','1W':'1w'};
     const interval = intervalMap[activeTimeframe] || '1h';
     const limit = {'1H':80,'4H':90,'1D':60,'1W':52}[activeTimeframe] || 80;
 
     let freshRaw = null;
 
-    // Try Binance
+    // Primary: use server proxy (no CORS)
     try {
-      const r = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`);
-      if (r.ok) { const d = await r.json(); if (Array.isArray(d)&&d.length) { freshRaw=d; dataSource='BINANCE (FRESH)'; } }
+      const r = await fetch(`${SERVER}/candles?symbol=${activeToken.symbol}&interval=${interval}&limit=${limit}`);
+      if (r.ok) {
+        const d = await r.json();
+        if (d.candles && d.candles.length) {
+          freshRaw = d.candles.map(c => [null, c.o, c.h, c.l, c.c, c.v]);
+          dataSource = `${d.source} (FRESH via server)`;
+        }
+      }
     } catch(e) {}
 
-    // Try Bybit
+    // Fallback: try direct exchanges
     if (!freshRaw) {
       try {
-        const bi = {'1h':'60','4h':'240','1d':'D','1w':'W'}[interval]||'60';
-        const r = await fetch(`https://api.bybit.com/v5/market/kline?category=spot&symbol=${symbol}&interval=${bi}&limit=${limit}`);
-        if (r.ok) { const d = await r.json(); const l=d?.result?.list; if (Array.isArray(l)&&l.length) { freshRaw=l.reverse().map(c=>[null,c[1],c[2],c[3],c[4],c[5]]); dataSource='BYBIT (FRESH)'; } }
-      } catch(e) {}
-    }
-
-    // Try OKX
-    if (!freshRaw) {
-      try {
-        const oi = activeToken.symbol+'-USDT';
-        const ob = {'1h':'1H','4h':'4H','1d':'1D','1w':'1W'}[interval]||'1H';
-        const r = await fetch(`https://www.okx.com/api/v5/market/candles?instId=${oi}&bar=${ob}&limit=${limit}`);
-        if (r.ok) { const d = await r.json(); const l=d?.data; if (Array.isArray(l)&&l.length) { freshRaw=l.reverse().map(c=>[null,c[1],c[2],c[3],c[4],c[5]]); dataSource='OKX (FRESH)'; } }
-      } catch(e) {}
-    }
-
-    // Try Hyperliquid
-    if (!freshRaw) {
-      try {
-        const hlInt = {'1h':60,'4h':240,'1d':1440,'1w':10080}[interval]||60;
-        const r = await fetch('https://api.hyperliquid.xyz/info', {
-          method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({type:'candleSnapshot',req:{coin:activeToken.symbol,interval:`${hlInt}m`,startTime:Date.now()-limit*hlInt*60*1000,endTime:Date.now()}})
-        });
-        if (r.ok) { const d = await r.json(); if (Array.isArray(d)&&d.length) { freshRaw=d.map(c=>[null,c.o,c.h,c.l,c.c,c.v]); dataSource='HYPERLIQUID (FRESH)'; } }
-      } catch(e) {}
-    }
-
-    // Try MEXC
-    if (!freshRaw) {
-      try {
-        const mexcInt = {'1h':'Min60','4h':'Hour4','1d':'Day1','1w':'Week1'}[interval]||'Min60';
-        const r = await fetch(`https://contract.mexc.com/api/v1/contract/kline/${activeToken.symbol}_USDT?interval=${mexcInt}&limit=${limit}`);
-        if (r.ok) {
-          const d = await r.json();
-          const md = d?.data;
-          if (md && Array.isArray(md.time) && md.time.length) {
-            freshRaw = md.time.map((_,i) => [null, md.open[i], md.high[i], md.low[i], md.close[i], md.vol[i]]);
-            dataSource = 'MEXC (FRESH)';
-          }
-        }
+        const symbol = activeToken.symbol + 'USDT';
+        const r = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`);
+        if (r.ok) { const d = await r.json(); if (Array.isArray(d)&&d.length) { freshRaw=d; dataSource='BINANCE (FRESH)'; } }
       } catch(e) {}
     }
 
