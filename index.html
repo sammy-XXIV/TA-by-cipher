@@ -297,6 +297,7 @@
   <div class="page visible" id="homePage">
     <div class="home-bar">
       <div class="mkt-count">// <b id="mktCount">LOADING...</b></div>
+      <button onclick="fetchPrices()" id="refreshPriceBtn" style="background:none;border:1px solid var(--border2);color:var(--accent2);font-family:'Share Tech Mono',monospace;font-size:11px;padding:5px 10px;cursor:pointer;letter-spacing:1px;flex-shrink:0;" title="Refresh prices">↺</button>
       <div class="search-box">
         <span>🔍</span>
         <input type="text" id="searchInput" placeholder="SEARCH..." autocomplete="off" oninput="handleSearch(this.value)">
@@ -325,13 +326,17 @@
           <div class="c-price" id="cPrice">$—</div>
           <div class="c-chg up" id="cChg">+0.00%</div>
         </div>
-        <div class="tf-btns">
-          <button class="tf-btn active" data-tf="1H">1H</button>
-          <button class="tf-btn" data-tf="4H">4H</button>
-          <button class="tf-btn" data-tf="1D">1D</button>
-          <button class="tf-btn" data-tf="1W">1W</button>
+        <div style="display:flex;align-items:center;gap:4px;">
+          <button onclick="refreshChart()" id="refreshChartBtn" style="background:none;border:1px solid var(--border2);color:var(--accent2);font-family:'Share Tech Mono',monospace;font-size:10px;padding:3px 8px;cursor:pointer;letter-spacing:1px;transition:all 0.2s;" title="Refresh chart">↺</button>
+          <div class="tf-btns">
+            <button class="tf-btn active" data-tf="1H">1H</button>
+            <button class="tf-btn" data-tf="4H">4H</button>
+            <button class="tf-btn" data-tf="1D">1D</button>
+            <button class="tf-btn" data-tf="1W">1W</button>
+          </div>
         </div>
       </div>
+      <div id="chartStatus" style="display:none;padding:4px 12px;font-size:8px;letter-spacing:1px;text-align:center;"></div>
       <div class="chart-area">
         <canvas id="chartCanvas"></canvas>
         <div class="chart-tags">
@@ -435,8 +440,26 @@ async function goDetail(id) {
   updateIndicators();
 }
 
+function showChartStatus(msg, color='var(--text3)') {
+  const el = document.getElementById('chartStatus');
+  if (!el) return;
+  if (!msg) { el.style.display='none'; return; }
+  el.style.display='block';
+  el.style.color=color;
+  el.style.background=color==='var(--accent3)'?'#ff3c6e10':'#00c9ff08';
+  el.textContent=msg;
+}
+
+async function refreshChart() {
+  const btn = document.getElementById('refreshChartBtn');
+  if (btn) { btn.textContent='⟳'; btn.style.opacity='0.5'; btn.disabled=true; }
+  await generateChartData();
+  drawChart();
+  updateIndicators();
+  if (btn) { btn.textContent='↺'; btn.style.opacity='1'; btn.disabled=false; }
+}
+
 function showTab(tab) {
-  document.querySelectorAll('.dtab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.dcontent').forEach(t => t.classList.remove('active'));
   document.getElementById('dtab-' + tab).classList.add('active');
   document.getElementById('dc-' + tab).classList.add('active');
@@ -487,6 +510,8 @@ function handleChartTap(e) {
 
 // FETCH PRICES
 async function fetchPrices() {
+  const btn = document.getElementById('refreshPriceBtn');
+  if (btn) { btn.textContent='⟳'; btn.style.opacity='0.5'; btn.disabled=true; }
   try {
     document.getElementById('mktCount').textContent = 'LOADING...';
     const r1 = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&price_change_percentage=24h').then(r=>r.json());
@@ -503,12 +528,14 @@ async function fetchPrices() {
       high: c.high_24h || 0, low: c.low_24h || 0, rank: c.market_cap_rank || 999,
     }));
     document.getElementById('mktCount').textContent = TOKENS.length + ' MARKETS';
+    if (btn) { btn.textContent='↺'; btn.style.opacity='1'; btn.disabled=false; }
     if (activeToken) {
       const updated = TOKENS.find(t => t.id === activeToken.id);
       if (updated) { activeToken = updated; updateChartHeader(); }
     }
     renderList();
   } catch(e) {
+    if (btn) { btn.textContent='↺'; btn.style.opacity='1'; btn.disabled=false; }
     const isRateLimit = e.message === 'RATE_LIMITED';
     document.getElementById('mktCount').textContent = isRateLimit ? 'RATE LIMITED' : 'ERROR';
     document.getElementById('tokenList').innerHTML = `
@@ -664,12 +691,15 @@ async function generateChartData() {
         vol:   parseFloat(c[5]),
       }));
       setLoad(100, 'DONE!');
+    showChartStatus('📡 BINANCE LIVE DATA', 'var(--accent2)');
+    setTimeout(()=>showChartStatus(''), 3000);
     } else {
       throw new Error('No data from Binance');
     }
   } catch(e) {
     if (fakeTimer) clearInterval(fakeTimer);
     setLoad(100, 'USING SIMULATED DATA');
+    showChartStatus('⚠ BINANCE UNAVAILABLE — Showing simulated data', 'var(--accent3)');
     const base = activeToken.price || 1, vol = base * 0.012;
     let price = base * (0.92 + Math.random() * 0.06);
     for (let i = 0; i < limit; i++) {
@@ -739,14 +769,14 @@ function drawChart() {
     const oY=py(c.open),cY=py(c.close),w=Math.max(cw*0.7,2);
     ctx.strokeStyle=color;ctx.lineWidth=1;
     ctx.beginPath();ctx.moveTo(x,py(c.high));ctx.lineTo(x,py(c.low));ctx.stroke();
-    ctx.fillStyle=up?'#00ff9d28':'#ff3c6e28';
+    ctx.fillStyle=up?'#00ff9d60':'#ff3c6e60';
     const bt=Math.min(oY,cY),bh=Math.abs(oY-cY)||1;
     ctx.fillRect(x-w/2,bt,w,bh);ctx.strokeRect(x-w/2,bt,w,bh);
   });
 
   const mv=Math.max(...visible.map(c=>c.vol));
   visible.forEach((c,i)=>{
-    ctx.fillStyle=c.close>=c.open?'rgba(0,255,157,0.18)':'rgba(255,60,110,0.18)';
+    ctx.fillStyle=c.close>=c.open?'rgba(0,255,157,0.35)':'rgba(255,60,110,0.35)';
     const bh=(c.vol/mv)*vH;ctx.fillRect(cx(i)-cw*0.35,vTop+vH-bh,cw*0.7,bh);
   });
 
@@ -967,9 +997,67 @@ async function runAnalysis() {
     }
   },1800);
 
-  const closes=chartData.map(c=>c.close),n=closes.length;
+  // Fetch FRESH candles directly from Binance for analysis
+  // This ensures AI always uses latest data regardless of chart age
+  let analysisChartData = chartData; // fallback to displayed chart
+  let usingSimulated = false;
+  let dataSource = 'BINANCE (LIVE)';
+  try {
+    const symbol = activeToken.symbol + 'USDT';
+    const intervalMap = {'1H':'1h','4H':'4h','1D':'1d','1W':'1w'};
+    const interval = intervalMap[activeTimeframe] || '1h';
+    const limit = {'1H':80,'4H':90,'1D':60,'1W':52}[activeTimeframe] || 80;
+    const freshRes = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`);
+    if (freshRes.ok) {
+      const freshRaw = await freshRes.json();
+      if (Array.isArray(freshRaw) && freshRaw.length) {
+        analysisChartData = freshRaw.map(c => ({
+          open: parseFloat(c[1]), high: parseFloat(c[2]),
+          low: parseFloat(c[3]), close: parseFloat(c[4]),
+          vol: parseFloat(c[5]),
+        }));
+        dataSource = 'BINANCE (FRESH — fetched at analysis time)';
+      }
+    }
+  } catch(e) {
+    usingSimulated = chartData.length > 0 && !chartData[0].open;
+    dataSource = usingSimulated ? 'SIMULATED (Binance unavailable — lower accuracy)' : 'CHART DATA (may not be latest)';
+  }
+
+  // Use fresh data for all calculations
+  const closes = analysisChartData.map(c=>c.close);
+  const n = closes.length;
+
+  // Recalculate indicators from fresh data
+  const freshHighs = analysisChartData.map(c=>c.high);
+  const freshLows = analysisChartData.map(c=>c.low);
+  const freshVols = analysisChartData.map(c=>c.vol);
+
+  // RSI from fresh data
+  let freshRsi = 50;
+  let fg2=0, fl2=0;
+  for(let i=1;i<=14;i++){const d=closes[i]-closes[i-1];d>0?fg2+=d:fl2-=d;}
+  freshRsi = Math.round(100-(100/(1+(fl2===0?100:fg2/fl2))));
+
+  // MACD from fresh data
+  const fm12=ema(closes,12),fm26=ema(closes,26),fml=fm12.map((v,i)=>v-fm26[i]),fsig=ema(fml,9);
+  const freshMacd=fml[n-1]-fsig[n-1];
+
+  // ATR from fresh data
+  let fatrSum=0;
+  for(let i=n-14;i<n;i++){
+    const tr=Math.max(freshHighs[i]-freshLows[i],Math.abs(freshHighs[i]-closes[i-1]),Math.abs(freshLows[i]-closes[i-1]));
+    fatrSum+=tr;
+  }
+  const freshAtr=fatrSum/14;
+
   const ind=updateIndicators()||{};
-  const {rsi=50,macd=0,stochRsi=50,atr=0,vwap=0,fib236=0,fib382=0,fib500=0,fib618=0,fib786=0,pocPrice=0,sup=0,res=0,swingHigh=0,swingLow=0,adx=0,divergence='NONE',candlePattern='NONE',volumeStrength='AVERAGE'}=ind;
+  const {stochRsi=50,vwap=0,fib236=0,fib382=0,fib500=0,fib618=0,fib786=0,pocPrice=0,adx=0,divergence='NONE',candlePattern='NONE',volumeStrength='AVERAGE'}=ind;
+  const rsi=freshRsi, macd=freshMacd, atr=freshAtr;
+  const sup=Math.min(...freshLows.slice(-20));
+  const res=Math.max(...freshHighs.slice(-20));
+  const swingHigh=Math.max(...freshHighs.slice(-50));
+  const swingLow=Math.min(...freshLows.slice(-50));
   const e20=ema(closes,20),e50=ema(closes,50),cp=closes[n-1];
   const bs=closes.slice(-20),bm=bs.reduce((a,b)=>a+b)/20;
   const bstd=Math.sqrt(bs.reduce((a,b)=>a+(b-bm)**2,0)/20);
@@ -1055,11 +1143,12 @@ async function runAnalysis() {
 
 
   const prompt=`You are CIPHER, elite AI crypto technical analyst with deep expertise in quantitative analysis. Analyze ${activeToken.symbol} using ALL provided data and give sharp actionable predictions.
-
+${usingSimulated ? '\n⚠ WARNING: Binance data unavailable. Analysis based on SIMULATED data — lower confidence recommended.\n' : ''}
 TOKEN: ${activeToken.symbol} (${activeToken.name})
 TIMEFRAME: ${activeTimeframe}
 CURRENT PRICE: ${fmt(cp)}
 24H CHANGE: ${activeToken.change>=0?'+':''}${activeToken.change.toFixed(2)}%
+DATA SOURCE: ${dataSource}
 
 MARKET SENTIMENT:
 - Fear & Greed Index: ${fearGreed}${fearGreedValue !== '' ? (fearGreedValue < 25 ? ' ← Extreme fear, potential buy zone' : fearGreedValue > 75 ? ' ← Extreme greed, potential sell zone' : '') : ''}
@@ -1137,7 +1226,7 @@ Respond ONLY with JSON (no markdown):
     clearInterval(tick);
     const bar=document.getElementById('pBar'),lbl=document.getElementById('pLbl');
     if(bar)bar.style.width='100%';if(lbl)lbl.textContent='100%';
-    setTimeout(()=>renderResult(a),300);
+    setTimeout(()=>renderResult(a, usingSimulated, dataSource),300);
   } catch(e) {
     clearInterval(tick);
     out.innerHTML=`
@@ -1149,13 +1238,19 @@ Respond ONLY with JSON (no markdown):
   btn.disabled=false;btn.textContent='▶ RUN ANALYSIS';
 }
 
-function renderResult(a) {
+function renderResult(a, isSimulated=false, dataSource='BINANCE') {
   const time=new Date().toLocaleTimeString('en-US',{hour12:false});
   const sc=a.signal==='LONG'?'sig-long':a.signal==='SHORT'?'sig-short':'sig-neut';
   const cc=a.signal==='LONG'?'cf-g':a.signal==='SHORT'?'cf-r':'cf-y';
   document.getElementById('outArea').innerHTML=`
     <div class="out-block">
       <div class="out-meta"><div class="out-tag">${activeToken.symbol}</div><div class="out-time">${time} UTC</div></div>
+      ${isSimulated ? `
+      <div style="background:#ff3c6e15;border:1px solid #ff3c6e40;padding:8px 10px;margin-bottom:10px;border-radius:2px;">
+        <div style="font-size:9px;color:var(--accent3);letter-spacing:1px;">⚠ SIMULATED DATA — Binance unavailable</div>
+        <div style="font-size:8px;color:var(--text3);margin-top:3px;">Analysis accuracy is lower. Do not trade on this signal.</div>
+      </div>` : `
+      <div style="font-size:8px;color:var(--text3);letter-spacing:1px;margin-bottom:8px;">📡 ${dataSource}</div>`}
       <div class="sig-block">
         <div class="sig-lbl">// SIGNAL</div>
         <div class="sig-val ${sc}">${a.signal}</div>
@@ -1356,3 +1451,4 @@ setInterval(fetchPrices, 60000);
 </script>
 </body>
 </html>
+
