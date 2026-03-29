@@ -508,26 +508,168 @@ function handleChartTap(e) {
   tooltip._timer = setTimeout(() => { tooltip.style.display = 'none'; }, 3000);
 }
 
-// FETCH PRICES
+// FETCH PRICES — from Binance, Bybit, OKX directly + CoinGecko fallback for metadata
 async function fetchPrices() {
   const btn = document.getElementById('refreshPriceBtn');
   if (btn) { btn.textContent='⟳'; btn.style.opacity='0.5'; btn.disabled=true; }
   try {
     document.getElementById('mktCount').textContent = 'LOADING...';
-    const r1 = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&price_change_percentage=24h').then(r=>r.json());
-    const coins = (Array.isArray(r1) ? r1 : []).filter(c => c && c.id);
-    
-    // Detect rate limit
-    const isRateLimited = !coins.length && r1?.status?.error_code === 429;
-    if (isRateLimited) throw new Error('RATE_LIMITED');
-    if (!coins.length) throw new Error('No data returned');
 
-    TOKENS = coins.map(c => ({
-      id: c.id, symbol: c.symbol.toUpperCase(), name: c.name,
-      price: c.current_price || 0, change: c.price_change_percentage_24h || 0,
-      high: c.high_24h || 0, low: c.low_24h || 0, rank: c.market_cap_rank || 999,
-    }));
-    document.getElementById('mktCount').textContent = TOKENS.length + ' MARKETS';
+    // Step 1: Get token list + metadata from CoinGecko (rank, name, id)
+    // But get prices from exchanges directly
+    let cgCoins = [];
+    try {
+      const r = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&price_change_percentage=24h').then(r=>r.json());
+      if (Array.isArray(r)) cgCoins = r.filter(c => c && c.id);
+    } catch(e) {}
+
+    // Step 2: Fetch real-time prices from all 3 exchanges simultaneously
+    let binancePrices = {}, bybitPrices = {}, okxPrices = {};
+
+    // Binance — fetch all tickers at once
+    try {
+      const r = await fetch('https://api.binance.com/api/v3/ticker/24hr').then(r=>r.json());
+      if (Array.isArray(r)) {
+        r.forEach(t => {
+          if (t.symbol.endsWith('USDT')) {
+            const sym = t.symbol.replace('USDT','');
+            binancePrices[sym] = {
+              price: parseFloat(t.lastPrice),
+              change: parseFloat(t.priceChangePercent),
+              high: parseFloat(t.highPrice),
+              low: parseFloat(t.lowPrice),
+            };
+          }
+        });
+      }
+    } catch(e) {}
+
+    // Bybit — fetch all tickers
+    try {
+      const r = await fetch('https://api.bybit.com/v5/market/tickers?category=spot').then(r=>r.json());
+      const list = r?.result?.list || [];
+      list.forEach(t => {
+        if (t.symbol.endsWith('USDT')) {
+          const sym = t.symbol.replace('USDT','');
+          bybitPrices[sym] = {
+            price: parseFloat(t.lastPrice),
+            change: parseFloat(t.price24hPcnt) * 100,
+            high: parseFloat(t.highPrice24h),
+            low: parseFloat(t.lowPrice24h),
+          };
+        }
+      });
+    } catch(e) {}
+
+    // OKX — fetch all tickers
+    try {
+      const r = await fetch('https://www.okx.com/api/v5/market/tickers?instType=SPOT').then(r=>r.json());
+      const list = r?.data || [];
+      list.forEach(t => {
+        if (t.instId.endsWith('-USDT')) {
+          const sym = t.instId.replace('-USDT','');
+          okxPrices[sym] = {
+            price: parseFloat(t.last),
+            change: ((parseFloat(t.last) - parseFloat(t.open24h)) / parseFloat(t.open24h)) * 100,
+            high: parseFloat(t.high24h),
+            low: parseFloat(t.low24h),
+          };
+        }
+      });
+    } catch(e) {}
+
+    // Hyperliquid — fetch all spot prices
+    let hlPrices = {};
+    try {
+      const r = await fetch('https://api.hyperliquid.xyz/info', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({type: 'spotMetaAndAssetCtxs'})
+      }).then(r=>r.json());
+      const tokens = r?.[0]?.tokens || [];
+      const ctxs = r?.[1] || [];
+      tokens.forEach((t, i) => {
+        const sym = t.name.toUpperCase();
+        const ctx = ctxs[i];
+        if (ctx && ctx.midPrice) {
+          hlPrices[sym] = {
+            price: parseFloat(ctx.midPrice),
+            change: 0, // HL doesn't give 24h change in this endpoint
+            high: parseFloat(ctx.midPrice) * 1.01,
+            low: parseFloat(ctx.midPrice) * 0.99,
+          };
+        }
+      });
+    } catch(e) {}
+
+    // MEXC — fetch all spot tickers
+    let mexcPrices = {};
+    try {
+      const r = await fetch('https://www.mexc.com/open/api/v2/market/ticker', {headers:{'Content-Type':'application/json'}}).then(r=>r.json());
+      const list = r?.data || [];
+      list.forEach(t => {
+        if (t.symbol && t.symbol.endsWith('_USDT')) {
+          const sym = t.symbol.replace('_USDT','');
+          mexcPrices[sym] = {
+            price: parseFloat(t.last),
+            change: parseFloat(t.priceChangePercent) || 0,
+            high: parseFloat(t.high),
+            low: parseFloat(t.low),
+          };
+        }
+      });
+    } catch(e) {}
+
+    // Step 3: Build token list — use CoinGecko for metadata, exchange prices for price data
+    if (cgCoins.length) {
+      TOKENS = cgCoins.map(c => {
+        const sym = c.symbol.toUpperCase();
+        // Collect available exchange prices including Hyperliquid and MEXC
+        const prices = [binancePrices[sym], bybitPrices[sym], okxPrices[sym], hlPrices[sym], mexcPrices[sym]].filter(p => p && p.price > 0);
+        
+        let price, change, high, low, source;
+        if (prices.length > 0) {
+          price  = prices.reduce((s,p) => s+p.price,  0) / prices.length;
+          change = prices.filter(p=>p.change!==0).reduce((s,p,_,a) => s+p.change/a.length, 0) || c.price_change_percentage_24h || 0;
+          high   = Math.max(...prices.map(p => p.high));
+          low    = Math.min(...prices.map(p => p.low));
+          source = `${prices.length} exchange${prices.length>1?'s':''}`;
+        } else {
+          price  = c.current_price || 0;
+          change = c.price_change_percentage_24h || 0;
+          high   = c.high_24h || 0;
+          low    = c.low_24h || 0;
+          source = 'coingecko';
+        }
+
+        return {
+          id: c.id, symbol: sym, name: c.name,
+          price, change, high, low,
+          rank: c.market_cap_rank || 999,
+          priceSource: source,
+        };
+      });
+    } else if (Object.keys(binancePrices).length) {
+      // No CoinGecko — build from Binance alone
+      TOKENS = Object.entries(binancePrices).map(([sym, p], i) => ({
+        id: sym.toLowerCase(), symbol: sym, name: sym,
+        price: p.price, change: p.change, high: p.high, low: p.low,
+        rank: i+1, priceSource: 'binance',
+      })).sort((a,b) => b.price - a.price).slice(0, 100);
+    } else {
+      throw new Error('All price sources failed');
+    }
+
+    const activeSources = [
+      Object.keys(binancePrices).length ? 'BINANCE' : null,
+      Object.keys(bybitPrices).length ? 'BYBIT' : null,
+      Object.keys(okxPrices).length ? 'OKX' : null,
+      Object.keys(hlPrices).length ? 'HYPERLIQUID' : null,
+      Object.keys(mexcPrices).length ? 'MEXC' : null,
+    ].filter(Boolean);
+    const sourceSummary = activeSources.length >= 3 ? `${activeSources.length}-EXCHANGE AVG` : activeSources.join('+') || 'COINGECKO';
+
+    document.getElementById('mktCount').textContent = `${TOKENS.length} MARKETS · ${sourceSummary}`;
     if (btn) { btn.textContent='↺'; btn.style.opacity='1'; btn.disabled=false; }
     if (activeToken) {
       const updated = TOKENS.find(t => t.id === activeToken.id);
@@ -536,16 +678,14 @@ async function fetchPrices() {
     renderList();
   } catch(e) {
     if (btn) { btn.textContent='↺'; btn.style.opacity='1'; btn.disabled=false; }
-    const isRateLimit = e.message === 'RATE_LIMITED';
-    document.getElementById('mktCount').textContent = isRateLimit ? 'RATE LIMITED' : 'ERROR';
+    document.getElementById('mktCount').textContent = 'ERROR';
     document.getElementById('tokenList').innerHTML = `
       <div class="empty">
         <div class="empty-icon">⚠</div>
-        <div style="color:var(--accent3);margin-bottom:8px;">${isRateLimit ? 'RATE LIMITED' : 'LOAD FAILED'}</div>
-        <div style="font-size:9px;color:var(--text3);margin-bottom:14px;">${isRateLimit ? 'Too many requests.\nAuto-retrying in 60s...' : e.message}</div>
+        <div style="color:var(--accent3);margin-bottom:8px;">LOAD FAILED</div>
+        <div style="font-size:9px;color:var(--text3);margin-bottom:14px;">${e.message}</div>
         <span onclick="fetchPrices()" style="color:var(--accent);cursor:pointer;border:1px solid var(--accent);padding:6px 14px;display:inline-block;">↺ RETRY NOW</span>
       </div>`;
-    if (isRateLimit) setTimeout(fetchPrices, 60000);
   }
 }
 
@@ -651,30 +791,110 @@ async function generateChartData() {
   let fakeTimer = null;
   try {
     setLoad(10, 'CONNECTING TO BINANCE...');
-
     let fakePct = 10;
     fakeTimer = setInterval(() => {
       if (fakePct < 75) { fakePct += 3; setLoad(fakePct); }
     }, 200);
 
-    // Try Binance first
     let raw = null;
+    let dataFrom = '';
+
+    // Helper: fetch with timeout
+    const fetchT = (url, opts={}, ms=5000) => {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), ms);
+      return fetch(url, {...opts, signal: ctrl.signal}).finally(() => clearTimeout(timer));
+    };
+
+    // 1. Try Binance
     try {
-      const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`);
+      const res = await fetchT(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`);
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data) && data.length) raw = data;
+        if (Array.isArray(data) && data.length) { raw = data; dataFrom = 'BINANCE'; }
       }
     } catch(e) {}
 
-    // Fallback: Binance US
+    // 2. Try Bybit
     if (!raw) {
       try {
-        setLoad(40, 'TRYING BINANCE US...');
-        const res = await fetch(`https://api.binance.us/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`);
+        setLoad(35, 'TRYING BYBIT...');
+        const bybitInterval = {'1h':'60','4h':'240','1d':'D','1w':'W'}[interval]||'60';
+        const res = await fetchT(`https://api.bybit.com/v5/market/kline?category=spot&symbol=${symbol}&interval=${bybitInterval}&limit=${limit}`);
         if (res.ok) {
           const data = await res.json();
-          if (Array.isArray(data) && data.length) raw = data;
+          const list = data?.result?.list;
+          if (Array.isArray(list) && list.length) {
+            raw = list.reverse().map(c => [null,c[1],c[2],c[3],c[4],c[5]]);
+            dataFrom = 'BYBIT';
+          }
+        }
+      } catch(e) {}
+    }
+
+    // 3. Try OKX
+    if (!raw) {
+      try {
+        setLoad(55, 'TRYING OKX...');
+        const okxSymbol = activeToken.symbol + '-USDT';
+        const okxInterval = {'1h':'1H','4h':'4H','1d':'1D','1w':'1W'}[interval]||'1H';
+        const res = await fetchT(`https://www.okx.com/api/v5/market/candles?instId=${okxSymbol}&bar=${okxInterval}&limit=${limit}`);
+        if (res.ok) {
+          const data = await res.json();
+          const list = data?.data;
+          if (Array.isArray(list) && list.length) {
+            raw = list.reverse().map(c => [null,c[1],c[2],c[3],c[4],c[5]]);
+            dataFrom = 'OKX';
+          }
+        }
+      } catch(e) {}
+    }
+
+    // 4. Try Hyperliquid
+    if (!raw) {
+      try {
+        setLoad(70, 'TRYING HYPERLIQUID...');
+        const hlInterval = {'1h':60,'4h':240,'1d':1440,'1w':10080}[interval]||60;
+        const res = await fetchT('https://api.hyperliquid.xyz/info', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            type: 'candleSnapshot',
+            req: {
+              coin: activeToken.symbol,
+              interval: `${hlInterval}m`,
+              startTime: Date.now() - limit * hlInterval * 60 * 1000,
+              endTime: Date.now()
+            }
+          })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length) {
+            raw = data.map(c => [null, c.o, c.h, c.l, c.c, c.v]);
+            dataFrom = 'HYPERLIQUID';
+          }
+        }
+      } catch(e) {}
+    }
+
+    // 5. Try MEXC
+    if (!raw) {
+      try {
+        setLoad(82, 'TRYING MEXC...');
+        const mexcInterval = {'1h':'Min60','4h':'Hour4','1d':'Day1','1w':'Week1'}[interval]||'Min60';
+        const mexcSymbol = activeToken.symbol + '_USDT';
+        const res = await fetchT(`https://contract.mexc.com/api/v1/contract/kline/${mexcSymbol}?interval=${mexcInterval}&limit=${limit}`);
+        if (res.ok) {
+          const data = await res.json();
+          const d = data?.data;
+          if (d && Array.isArray(d.time) && d.time.length) {
+            raw = d.time.map((_, i) => [
+              null,
+              d.open[i], d.high[i], d.low[i], d.close[i], d.vol[i]
+            ]);
+            dataFrom = 'MEXC';
+          }
         }
       } catch(e) {}
     }
@@ -691,10 +911,10 @@ async function generateChartData() {
         vol:   parseFloat(c[5]),
       }));
       setLoad(100, 'DONE!');
-    showChartStatus('📡 BINANCE LIVE DATA', 'var(--accent2)');
-    setTimeout(()=>showChartStatus(''), 3000);
+      showChartStatus(`📡 ${dataFrom} LIVE DATA`, 'var(--accent2)');
+      setTimeout(()=>showChartStatus(''), 3000);
     } else {
-      throw new Error('No data from Binance');
+      throw new Error('All sources failed');
     }
   } catch(e) {
     if (fakeTimer) clearInterval(fakeTimer);
@@ -999,7 +1219,7 @@ async function runAnalysis() {
 
   // Fetch FRESH candles directly from Binance for analysis
   // This ensures AI always uses latest data regardless of chart age
-  let analysisChartData = chartData; // fallback to displayed chart
+  let analysisChartData = chartData;
   let usingSimulated = false;
   let dataSource = 'BINANCE (LIVE)';
   try {
@@ -1007,21 +1227,73 @@ async function runAnalysis() {
     const intervalMap = {'1H':'1h','4H':'4h','1D':'1d','1W':'1w'};
     const interval = intervalMap[activeTimeframe] || '1h';
     const limit = {'1H':80,'4H':90,'1D':60,'1W':52}[activeTimeframe] || 80;
-    const freshRes = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`);
-    if (freshRes.ok) {
-      const freshRaw = await freshRes.json();
-      if (Array.isArray(freshRaw) && freshRaw.length) {
-        analysisChartData = freshRaw.map(c => ({
-          open: parseFloat(c[1]), high: parseFloat(c[2]),
-          low: parseFloat(c[3]), close: parseFloat(c[4]),
-          vol: parseFloat(c[5]),
-        }));
-        dataSource = 'BINANCE (FRESH — fetched at analysis time)';
-      }
+
+    let freshRaw = null;
+
+    // Try Binance
+    try {
+      const r = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`);
+      if (r.ok) { const d = await r.json(); if (Array.isArray(d)&&d.length) { freshRaw=d; dataSource='BINANCE (FRESH)'; } }
+    } catch(e) {}
+
+    // Try Bybit
+    if (!freshRaw) {
+      try {
+        const bi = {'1h':'60','4h':'240','1d':'D','1w':'W'}[interval]||'60';
+        const r = await fetch(`https://api.bybit.com/v5/market/kline?category=spot&symbol=${symbol}&interval=${bi}&limit=${limit}`);
+        if (r.ok) { const d = await r.json(); const l=d?.result?.list; if (Array.isArray(l)&&l.length) { freshRaw=l.reverse().map(c=>[null,c[1],c[2],c[3],c[4],c[5]]); dataSource='BYBIT (FRESH)'; } }
+      } catch(e) {}
+    }
+
+    // Try OKX
+    if (!freshRaw) {
+      try {
+        const oi = activeToken.symbol+'-USDT';
+        const ob = {'1h':'1H','4h':'4H','1d':'1D','1w':'1W'}[interval]||'1H';
+        const r = await fetch(`https://www.okx.com/api/v5/market/candles?instId=${oi}&bar=${ob}&limit=${limit}`);
+        if (r.ok) { const d = await r.json(); const l=d?.data; if (Array.isArray(l)&&l.length) { freshRaw=l.reverse().map(c=>[null,c[1],c[2],c[3],c[4],c[5]]); dataSource='OKX (FRESH)'; } }
+      } catch(e) {}
+    }
+
+    // Try Hyperliquid
+    if (!freshRaw) {
+      try {
+        const hlInt = {'1h':60,'4h':240,'1d':1440,'1w':10080}[interval]||60;
+        const r = await fetch('https://api.hyperliquid.xyz/info', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({type:'candleSnapshot',req:{coin:activeToken.symbol,interval:`${hlInt}m`,startTime:Date.now()-limit*hlInt*60*1000,endTime:Date.now()}})
+        });
+        if (r.ok) { const d = await r.json(); if (Array.isArray(d)&&d.length) { freshRaw=d.map(c=>[null,c.o,c.h,c.l,c.c,c.v]); dataSource='HYPERLIQUID (FRESH)'; } }
+      } catch(e) {}
+    }
+
+    // Try MEXC
+    if (!freshRaw) {
+      try {
+        const mexcInt = {'1h':'Min60','4h':'Hour4','1d':'Day1','1w':'Week1'}[interval]||'Min60';
+        const r = await fetch(`https://contract.mexc.com/api/v1/contract/kline/${activeToken.symbol}_USDT?interval=${mexcInt}&limit=${limit}`);
+        if (r.ok) {
+          const d = await r.json();
+          const md = d?.data;
+          if (md && Array.isArray(md.time) && md.time.length) {
+            freshRaw = md.time.map((_,i) => [null, md.open[i], md.high[i], md.low[i], md.close[i], md.vol[i]]);
+            dataSource = 'MEXC (FRESH)';
+          }
+        }
+      } catch(e) {}
+    }
+
+    if (freshRaw) {
+      analysisChartData = freshRaw.map(c => ({
+        open: parseFloat(c[1]), high: parseFloat(c[2]),
+        low: parseFloat(c[3]), close: parseFloat(c[4]),
+        vol: parseFloat(c[5]),
+      }));
+    } else {
+      dataSource = usingSimulated ? 'SIMULATED (all sources failed)' : 'CHART DATA (cached)';
     }
   } catch(e) {
-    usingSimulated = chartData.length > 0 && !chartData[0].open;
-    dataSource = usingSimulated ? 'SIMULATED (Binance unavailable — lower accuracy)' : 'CHART DATA (may not be latest)';
+    dataSource = 'CHART DATA (cached)';
   }
 
   // Use fresh data for all calculations
