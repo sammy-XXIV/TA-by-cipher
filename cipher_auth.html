@@ -465,7 +465,7 @@ async function doSignup() {
 
   const { data, error } = await sb.auth.signUp({
     email, password,
-    options: { emailRedirectTo: `${window.location.origin}/index.html` }
+    options: { emailRedirectTo: 'https://tradewithcipher.online/index.html' }
   });
 
   btn.textContent = 'CREATE ACCOUNT'; btn.disabled = false; btn.classList.remove('loading');
@@ -487,7 +487,7 @@ async function doReset() {
   btn.textContent = 'SENDING...'; btn.disabled = true; btn.classList.add('loading');
 
   const { error } = await sb.auth.resetPasswordForEmail(email, {
-    redirectTo: `${window.location.origin}/index.html`
+    redirectTo: 'https://tradewithcipher.online/cipher_auth.html'
   });
 
   btn.textContent = 'SEND RESET LINK'; btn.disabled = false; btn.classList.remove('loading');
