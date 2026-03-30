@@ -304,6 +304,25 @@
         <input type="text" id="searchInput" placeholder="SEARCH..." autocomplete="off" oninput="handleSearch(this.value)">
       </div>
     </div>
+
+    <!-- MEXC TICKER SEARCH -->
+    <div style="padding:8px 10px;border-bottom:1px solid var(--border);background:var(--bg2);">
+      <div style="font-size:8px;color:var(--text3);letter-spacing:2px;margin-bottom:6px;">// MEXC TICKER SEARCH</div>
+      <div style="display:flex;gap:6px;">
+        <input type="text" id="mexcTickerInput"
+          placeholder="e.g. BONK, PEPE, WIF..."
+          autocomplete="off"
+          style="flex:1;background:#020408;border:1px solid var(--border2);color:var(--text);font-family:'Share Tech Mono',monospace;font-size:12px;padding:8px 10px;outline:none;letter-spacing:1px;"
+          onkeydown="if(event.key==='Enter') fetchMexcTicker()"
+        >
+        <button onclick="fetchMexcTicker()" id="mexcFetchBtn"
+          style="background:#00ff9d15;border:1px solid #00ff9d40;color:var(--accent);font-family:'Share Tech Mono',monospace;font-size:10px;padding:8px 14px;cursor:pointer;letter-spacing:1px;white-space:nowrap;">
+          FETCH →
+        </button>
+      </div>
+      <div id="mexcFetchStatus" style="font-size:9px;color:var(--text3);margin-top:5px;letter-spacing:1px;display:none;"></div>
+    </div>
+
     <div class="token-list" id="tokenList">
       <div class="empty">
         <div class="empty-icon">◈</div>
@@ -750,6 +769,79 @@ function renderList() {
 }
 
 function handleSearch(v) { searchQuery = v; renderList(); }
+
+// ============================================================
+// MEXC TICKER SEARCH — fetch any token directly from MEXC
+// ============================================================
+async function fetchMexcTicker() {
+  const input = document.getElementById('mexcTickerInput');
+  const btn = document.getElementById('mexcFetchBtn');
+  const status = document.getElementById('mexcFetchStatus');
+
+  let ticker = input.value.trim().toUpperCase().replace('$','').replace('USDT','').replace('_USDT','');
+  if (!ticker) { showMexcStatus('⚠ Enter a ticker symbol', 'var(--accent3)'); return; }
+
+  btn.textContent = '...'; btn.disabled = true;
+  showMexcStatus(`⏳ Fetching ${ticker} from MEXC...`, 'var(--text2)');
+
+  try {
+    // Fetch via server proxy (avoids CORS)
+    const [tickerRes, candleRes] = await Promise.allSettled([
+      fetch(`${SERVER}/ticker?symbol=${ticker}`).then(r=>r.json()),
+      fetch(`${SERVER}/candles?symbol=${ticker}&interval=1h&limit=80`).then(r=>r.json()),
+    ]);
+
+    // Get price data from server
+    let price = 0, change = 0, high = 0, low = 0, src = '';
+    if (tickerRes.status === 'fulfilled' && !tickerRes.value.error) {
+      const d = tickerRes.value;
+      price = d.price; change = d.change; high = d.high; low = d.low; src = d.source;
+    }
+
+    if (!price) {
+      showMexcStatus(`❌ ${ticker} not found — check the ticker symbol`, 'var(--accent3)');
+      btn.textContent = 'FETCH →'; btn.disabled = false;
+      return;
+    }
+
+    // Build a token object and select it
+    const token = {
+      id: ticker.toLowerCase(),
+      symbol: ticker,
+      name: ticker,
+      price, change, high, low,
+      rank: 999,
+      priceSource: src || 'SERVER',
+    };
+
+    // Add to tokens list if not already there
+    const exists = TOKENS.findIndex(t => t.symbol === ticker);
+    if (exists >= 0) TOKENS[exists] = token;
+    else TOKENS.unshift(token);
+
+    renderList();
+    showMexcStatus(`✓ ${ticker} loaded — $${fmt(price)} (${change >= 0 ? '+':''}${change.toFixed(2)}%)`, 'var(--accent)');
+    input.value = '';
+
+    // Auto-select and open chart
+    await selectToken(token);
+
+    btn.textContent = 'FETCH →'; btn.disabled = false;
+
+  } catch(e) {
+    showMexcStatus(`❌ Error: ${e.message}`, 'var(--accent3)');
+    btn.textContent = 'FETCH →'; btn.disabled = false;
+  }
+}
+
+function showMexcStatus(msg, color='var(--text3)') {
+  const el = document.getElementById('mexcFetchStatus');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = color;
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 5000);
+}
 
 function fmt(p) {
   if (!p) return '$—';
@@ -1848,3 +1940,4 @@ initAuth().then(ok => {
 </script>
 </body>
 </html>
+
