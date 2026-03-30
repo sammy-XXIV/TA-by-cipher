@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>CIPHER — Access</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #020408;
+    --bg2: #0a0f1a;
+    --accent: #00ff9d;
+    --accent2: #00c9ff;
+    --accent3: #ff3c6e;
+    --text: #e0f0ff;
+    --text2: #8aa0b8;
+    --text3: #3a4a5a;
+    --border: #0d2035;
+    --border2: #1a3050;
+    --glow: 0 0 12px #00ff9d60;
+    --glow2: 0 0 12px #00c9ff60;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    overflow: hidden;
+  }
+
+  /* Background grid */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,255,157,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,255,157,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    width: 100%;
+    max-width: 360px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Logo */
+  .logo {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+
+  .logo-hex {
+    font-size: 36px;
+    color: var(--accent);
+    text-shadow: var(--glow);
+    display: block;
+    margin-bottom: 8px;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
+
+  .logo-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 28px;
+    font-weight: 900;
+    letter-spacing: 8px;
+    color: var(--accent);
+    text-shadow: var(--glow);
+  }
+
+  .logo-sub {
+    font-size: 9px;
+    color: var(--text2);
+    letter-spacing: 3px;
+    margin-top: 6px;
+  }
+
+  /* Card */
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    padding: 28px 24px;
+    position: relative;
+  }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--border2);
+  }
+
+  .tab {
+    flex: 1;
+    padding: 10px;
+    text-align: center;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--text3);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+    background: none;
+    border: none;
+    font-family: 'Share Tech Mono', monospace;
+  }
+
+  .tab.active {
+    color: var(--accent);
+    border-bottom: 2px solid var(--accent);
+  }
+
+  /* Form */
+  .form { display: none; }
+  .form.active { display: block; }
+
+  .field {
+    margin-bottom: 16px;
+  }
+
+  .field label {
+    display: block;
+    font-size: 8px;
+    letter-spacing: 2px;
+    color: var(--text2);
+    margin-bottom: 6px;
+  }
+
+  .field input {
+    width: 100%;
+    background: #020408;
+    border: 1px solid var(--border2);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px;
+    padding: 10px 12px;
+    outline: none;
+    transition: border-color 0.2s;
+    -webkit-appearance: none;
+  }
+
+  .field input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px #00ff9d20;
+  }
+
+  .field input::placeholder { color: var(--text3); }
+
+  .btn {
+    width: 100%;
+    background: var(--accent);
+    color: #020408;
+    border: none;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    padding: 13px;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: all 0.2s;
+  }
+
+  .btn:hover { filter: brightness(1.1); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn.loading { background: var(--border2); color: var(--text2); }
+
+  .error-msg {
+    background: #ff3c6e15;
+    border: 1px solid #ff3c6e40;
+    color: var(--accent3);
+    font-size: 9px;
+    padding: 8px 10px;
+    margin-top: 12px;
+    letter-spacing: 1px;
+    display: none;
+  }
+
+  .success-msg {
+    background: #00ff9d15;
+    border: 1px solid #00ff9d40;
+    color: var(--accent);
+    font-size: 9px;
+    padding: 8px 10px;
+    margin-top: 12px;
+    letter-spacing: 1px;
+    display: none;
+  }
+
+  .divider {
+    text-align: center;
+    font-size: 8px;
+    color: var(--text3);
+    letter-spacing: 2px;
+    margin: 16px 0;
+    position: relative;
+  }
+
+  .divider::before, .divider::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    width: 40%;
+    height: 1px;
+    background: var(--border2);
+  }
+
+  .divider::before { left: 0; }
+  .divider::after { right: 0; }
+
+  .forgot {
+    text-align: right;
+    margin-top: -8px;
+    margin-bottom: 12px;
+  }
+
+  .forgot a {
+    font-size: 8px;
+    color: var(--text2);
+    letter-spacing: 1px;
+    cursor: pointer;
+    text-decoration: none;
+  }
+
+  .footer-note {
+    text-align: center;
+    font-size: 8px;
+    color: var(--text3);
+    letter-spacing: 1px;
+    margin-top: 20px;
+  }
+
+  /* Matrix */
+  .matrix {
+    position: fixed;
+    bottom: 0; right: 0;
+    width: 60px; height: 100px;
+    pointer-events: none;
+    opacity: 0.04;
+    font-size: 9px;
+    color: var(--accent);
+    overflow: hidden;
+    z-index: 0;
+  }
+
+  /* Scan line */
+  .scanline {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent2), transparent);
+    opacity: 0.3;
+    animation: scan 4s linear infinite;
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  @keyframes scan {
+    0% { top: 0; }
+    100% { top: 100vh; }
+  }
+
+  .password-toggle {
+    position: relative;
+  }
+
+  .password-toggle input { padding-right: 36px; }
+
+  .toggle-eye {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    color: var(--text3);
+    font-size: 14px;
+    user-select: none;
+  }
+</style>
+</head>
+<body>
+
+<div class="scanline"></div>
+<div class="matrix" id="matrix"></div>
+
+<div class="container">
+  <div class="logo">
+    <span class="logo-hex">⬡</span>
+    <div class="logo-title">CIPHER</div>
+    <div class="logo-sub">AI CRYPTO TRADING SYSTEM</div>
+  </div>
+
+  <div class="card">
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('login')" id="tab-login">LOGIN</button>
+      <button class="tab" onclick="switchTab('signup')" id="tab-signup">SIGN UP</button>
+    </div>
+
+    <!-- LOGIN FORM -->
+    <div class="form active" id="form-login">
+      <div class="field">
+        <label>EMAIL</label>
+        <input type="email" id="login-email" placeholder="your@email.com" autocomplete="email">
+      </div>
+      <div class="field">
+        <label>PASSWORD</label>
+        <div class="password-toggle">
+          <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
+          <span class="toggle-eye" onclick="togglePw('login-password')">👁</span>
+        </div>
+      </div>
+      <div class="forgot"><a onclick="switchTab('reset')">Forgot password?</a></div>
+      <button class="btn" id="login-btn" onclick="doLogin()">LOGIN</button>
+      <div class="error-msg" id="login-error"></div>
+      <div class="success-msg" id="login-success"></div>
+    </div>
+
+    <!-- SIGNUP FORM -->
+    <div class="form" id="form-signup">
+      <div class="field">
+        <label>EMAIL</label>
+        <input type="email" id="signup-email" placeholder="your@email.com" autocomplete="email">
+      </div>
+      <div class="field">
+        <label>PASSWORD</label>
+        <div class="password-toggle">
+          <input type="password" id="signup-password" placeholder="Min 8 characters" autocomplete="new-password">
+          <span class="toggle-eye" onclick="togglePw('signup-password')">👁</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>CONFIRM PASSWORD</label>
+        <div class="password-toggle">
+          <input type="password" id="signup-confirm" placeholder="Repeat password" autocomplete="new-password">
+          <span class="toggle-eye" onclick="togglePw('signup-confirm')">👁</span>
+        </div>
+      </div>
+      <button class="btn" id="signup-btn" onclick="doSignup()">CREATE ACCOUNT</button>
+      <div class="error-msg" id="signup-error"></div>
+      <div class="success-msg" id="signup-success"></div>
+    </div>
+
+    <!-- RESET FORM -->
+    <div class="form" id="form-reset">
+      <div style="font-size:9px;color:var(--text2);letter-spacing:1px;margin-bottom:16px;line-height:1.6">
+        Enter your email and we'll send you a password reset link.
+      </div>
+      <div class="field">
+        <label>EMAIL</label>
+        <input type="email" id="reset-email" placeholder="your@email.com">
+      </div>
+      <button class="btn" id="reset-btn" onclick="doReset()">SEND RESET LINK</button>
+      <div class="error-msg" id="reset-error"></div>
+      <div class="success-msg" id="reset-success"></div>
+      <div style="text-align:center;margin-top:12px;">
+        <a onclick="switchTab('login')" style="font-size:8px;color:var(--text2);cursor:pointer;letter-spacing:1px;">← Back to login</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-note">
+    CIPHER v2.0 · tradewithcipher.online · ⚠ NOT FINANCIAL ADVICE
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = 'https://zttdlnavawepvhbtldgq.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_PiRo_l11XVyrqnhmn5NldQ_Ju0ItrBV';
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// Check if already logged in
+sb.auth.getSession().then(({ data: { session } }) => {
+  if (session) {
+    window.location.href = 'index.html';
+  }
+});
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.form').forEach(f => f.classList.remove('active'));
+  if (tab === 'login') {
+    document.getElementById('tab-login').classList.add('active');
+    document.getElementById('form-login').classList.add('active');
+  } else if (tab === 'signup') {
+    document.getElementById('tab-signup').classList.add('active');
+    document.getElementById('form-signup').classList.add('active');
+  } else if (tab === 'reset') {
+    document.getElementById('form-reset').classList.add('active');
+  }
+}
+
+function togglePw(id) {
+  const input = document.getElementById(id);
+  input.type = input.type === 'password' ? 'text' : 'password';
+}
+
+function showMsg(id, msg, isError=true) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 5000);
+}
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const btn = document.getElementById('login-btn');
+
+  if (!email || !password) { showMsg('login-error', '⚠ Enter email and password'); return; }
+
+  btn.textContent = 'AUTHENTICATING...'; btn.disabled = true; btn.classList.add('loading');
+
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+
+  btn.textContent = 'LOGIN'; btn.disabled = false; btn.classList.remove('loading');
+
+  if (error) {
+    showMsg('login-error', `⚠ ${error.message}`);
+  } else {
+    showMsg('login-error', '', false);
+    showMsg('login-success', '✓ ACCESS GRANTED — Loading CIPHER...', false);
+    setTimeout(() => { window.location.href = 'index.html'; }, 800);
+  }
+}
+
+async function doSignup() {
+  const email = document.getElementById('signup-email').value.trim();
+  const password = document.getElementById('signup-password').value;
+  const confirm = document.getElementById('signup-confirm').value;
+  const btn = document.getElementById('signup-btn');
+
+  if (!email || !password) { showMsg('signup-error', '⚠ Fill in all fields'); return; }
+  if (password.length < 8) { showMsg('signup-error', '⚠ Password must be at least 8 characters'); return; }
+  if (password !== confirm) { showMsg('signup-error', '⚠ Passwords do not match'); return; }
+
+  btn.textContent = 'CREATING ACCOUNT...'; btn.disabled = true; btn.classList.add('loading');
+
+  const { data, error } = await sb.auth.signUp({
+    email, password,
+    options: { emailRedirectTo: `${window.location.origin}/index.html` }
+  });
+
+  btn.textContent = 'CREATE ACCOUNT'; btn.disabled = false; btn.classList.remove('loading');
+
+  if (error) {
+    showMsg('signup-error', `⚠ ${error.message}`);
+  } else {
+    showMsg('signup-error', '', false);
+    showMsg('signup-success', '✓ Account created! Check your email to verify.', false);
+  }
+}
+
+async function doReset() {
+  const email = document.getElementById('reset-email').value.trim();
+  const btn = document.getElementById('reset-btn');
+
+  if (!email) { showMsg('reset-error', '⚠ Enter your email'); return; }
+
+  btn.textContent = 'SENDING...'; btn.disabled = true; btn.classList.add('loading');
+
+  const { error } = await sb.auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/index.html`
+  });
+
+  btn.textContent = 'SEND RESET LINK'; btn.disabled = false; btn.classList.remove('loading');
+
+  if (error) {
+    showMsg('reset-error', `⚠ ${error.message}`);
+  } else {
+    showMsg('reset-error', '', false);
+    showMsg('reset-success', '✓ Reset link sent! Check your email.', false);
+  }
+}
+
+// Enter key support
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  const active = document.querySelector('.form.active').id;
+  if (active === 'form-login') doLogin();
+  else if (active === 'form-signup') doSignup();
+  else if (active === 'form-reset') doReset();
+});
+
+// Matrix rain
+const chars = '01◈⬡∑∇アイウ';
+setInterval(() => {
+  let h = '';
+  for (let i = 0; i < 80; i++) {
+    h += chars[Math.floor(Math.random() * chars.length)];
+    if (i % 5 === 4) h += '\n';
+  }
+  document.getElementById('matrix').textContent = h;
+}, 120);
+</script>
+</body>
+</html>
+
