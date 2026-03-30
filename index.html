@@ -288,6 +288,7 @@
   <div class="header-right">
     <div class="dot-pill"><div class="dot green"></div>LIVE</div>
     <div class="dot-pill"><div class="dot blue"></div>AI</div>
+    <button onclick="window.location.href='cipher_settings.html'" style="background:none;border:1px solid var(--border2);color:var(--text2);font-family:'Share Tech Mono',monospace;font-size:10px;padding:4px 8px;cursor:pointer;letter-spacing:1px;">⚙</button>
   </div>
 </header>
 
@@ -400,9 +401,14 @@
 <div class="sammy">made by <span>SAMMY</span></div>
 <div class="matrix" id="matrix"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-const SERVER = 'https://back-end-yeoe.onrender.com';
-const PASSWORD = 'Hifive?3';
+const SERVER = 'https://back-end-1-928p.onrender.com';
+const SUPABASE_URL = 'https://zttdlnavawepvhbtldgq.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_PiRo_l11XVyrqnhmn5NldQ_Ju0ItrBV';
+const NOTIFY_BOT_TOKEN = '8685607507:AAHSQ-8hz9ivTNaNmYTKy8Gl-l-ZQaNO9YQ';
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let TOKENS = [];
 let activeToken = null;
@@ -410,6 +416,40 @@ let activeTimeframe = '1H';
 let chartData = [];
 let searchQuery = '';
 let zoomLevel = 1;
+let currentUser = null;
+let userProfile = null;
+
+// ============================================================
+// AUTH — check login on load
+// ============================================================
+async function initAuth() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) {
+    window.location.href = 'cipher_auth.html';
+    return false;
+  }
+  currentUser = session.user;
+  // Load profile (telegram chat_id + prefs)
+  const { data } = await sb.from('profiles').select('*').eq('user_id', currentUser.id).single();
+  userProfile = data || null;
+  return true;
+}
+
+// Send notification to user's personal Telegram
+async function sendPersonalNotification(text, type='general') {
+  if (!userProfile?.telegram_verified || !userProfile?.telegram_chat_id) return;
+  const prefs = userProfile?.notification_prefs || {};
+  const prefMap = { analysis:'analysis', entry:'entry', dead:'dead', expired:'expired', feargreed:'feargreed' };
+  const key = prefMap[type];
+  if (key && prefs[key] === false) return; // muted
+  try {
+    await fetch(`https://api.telegram.org/bot${NOTIFY_BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ chat_id: userProfile.telegram_chat_id, text, parse_mode: 'HTML' })
+    });
+  } catch(e) { console.error('Notify error:', e); }
+}
 
 // NAVIGATION
 function goHome() {
@@ -1117,16 +1157,7 @@ function updateIndicators() {
 
 // AI ANALYSIS
 async function runAnalysis() {
-  const pw=document.getElementById('pwInput').value.trim();
-  if(!pw){alert('Enter the access password');return;}
-  if(pw!==PASSWORD){
-    document.getElementById('outArea').innerHTML=`
-      <div class="out-block" style="border-left:2px solid var(--accent3)">
-        <div class="out-txt" style="color:var(--accent3)">⛔ ACCESS DENIED</div>
-        <div class="out-txt" style="margin-top:6px;color:var(--text3)">Invalid password.</div>
-      </div>`;
-    return;
-  }
+  if(!currentUser){ window.location.href='cipher_auth.html'; return; }
   if(!activeToken){alert('Select a token first');return;}
 
   const btn=document.getElementById('runBtn');
@@ -1491,10 +1522,201 @@ function renderResult(a, isSimulated=false, dataSource='BINANCE') {
             'border-color:#ffbe0040;color:var(--accent4);background:#ffbe0010'}">${a.risk}</div>
       </div>
       ${a.risk_reason ? `<div style="margin-top:5px;font-size:9px;color:var(--text3);letter-spacing:1px;">${a.risk_reason}</div>` : ''}
+
+      <!-- SIGNAL TIMER -->
+      <div style="margin-top:10px;padding:10px;border:1px solid var(--border2);background:var(--bg3);">
+        <div style="font-size:8px;color:var(--text3);letter-spacing:2px;margin-bottom:6px;">⏱ SIGNAL VALIDITY TIMER</div>
+        <div id="timerDisplay" style="font-size:18px;color:var(--text3);font-family:'Orbitron',sans-serif;font-weight:700;">--:--</div>
+        <div id="timerStatus" style="font-size:8px;color:var(--text3);margin-top:3px;letter-spacing:1px;">Tap below to start tracking this setup</div>
+        <button id="setTimerBtn" onclick="activateTimer()" style="margin-top:8px;width:100%;background:#00ff9d10;border:1px solid #00ff9d40;color:var(--accent);font-family:'Share Tech Mono',monospace;font-size:10px;padding:7px;cursor:pointer;letter-spacing:2px;">
+          ⏱ SET TIMER
+        </button>
+      </div>
+
       <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border);font-size:8px;color:var(--text3);letter-spacing:1px;line-height:1.8">
         ⚠ NOT FINANCIAL ADVICE. AI-GENERATED ONLY.
       </div>
     </div>`;
+
+  // Store signal for manual timer activation
+  activeSignal = a;
+  timerActive = false;
+  // Auto send analysis to Telegram
+  sendToTelegram();
+}
+
+// ============================================================
+// TELEGRAM NOTIFICATION CONFIG
+// ============================================================
+async function sendTelegramMessage(text, type='general') {
+  // Use personal notification if user has linked Telegram
+  await sendPersonalNotification(text, type);
+}
+
+async function sendToTelegram() {
+  const btn = document.getElementById('tgBtn');
+  if (!activeSignal || !activeToken) return;
+  if (!userProfile?.telegram_verified) {
+    alert('Link your Telegram in Settings first!');
+    return;
+  }
+  if (btn) { btn.textContent = '⏳ SENDING...'; btn.disabled = true; }
+  const a = activeSignal;
+  const emoji = a.signal==='LONG' ? '🟢' : a.signal==='SHORT' ? '🔴' : '🟡';
+  const msg = (
+    `${emoji} <b>CIPHER SIGNAL — ${activeToken.symbol}</b>\n\n` +
+    `Signal: <b>${a.signal}</b> (${a.confidence}% confidence)\n` +
+    `Timeframe: <b>${activeTimeframe}</b>\n\n` +
+    `🎯 Entry: <b>${a.entry}</b>\n` +
+    `✅ TP: <b>${a.target}</b>\n` +
+    `🛑 SL: <b>${a.stop}</b>\n` +
+    `⚖️ R/R: <b>${a.rr_ratio||'1:2'}</b>\n` +
+    `📈 ROI: <b>${a.roi||'—'}</b>\n` +
+    `💰 Position: <b>${a.position_size||'—'}</b>\n\n` +
+    `📝 ${a.reasoning||''}\n` +
+    `⚠️ ${a.caution||''}\n\n` +
+    `⏱ Signal expires in: <b>${getTimerLabel()}</b>\n\n` +
+    `⚠️ NOT FINANCIAL ADVICE`
+  );
+  await sendTelegramMessage(msg, 'analysis');
+  if (btn) { btn.textContent = '✅ SENT'; btn.disabled = false; }
+  setTimeout(() => { if (btn) btn.textContent = '📱 SEND TO TELEGRAM'; }, 3000);
+}
+
+// ============================================================
+// SIGNAL EXPIRY TIMER
+// ============================================================
+let signalTimerInterval = null;
+let signalExpiry = null;
+let activeSignal = null;
+let setupMonitorInterval = null;
+let timerActive = false;
+
+const EXPIRY_MINUTES = {'1H': 60, '4H': 240, '1D': 1440, '1W': 10080};
+
+function getTimerLabel() {
+  if (!signalExpiry) return '--:--';
+  const remaining = Math.max(0, signalExpiry - Date.now());
+  const mins = Math.floor(remaining / 60000);
+  const secs = Math.floor((remaining % 60000) / 1000);
+  if (mins >= 60) return `${Math.floor(mins/60)}h ${mins%60}m`;
+  return `${mins}m ${secs.toString().padStart(2,'0')}s`;
+}
+
+function activateTimer() {
+  if (!activeSignal || !activeToken) return;
+  const btn = document.getElementById('setTimerBtn');
+  if (btn) { btn.textContent = '✅ TIMER ACTIVE'; btn.disabled = true; btn.style.opacity = '0.6'; }
+  startSignalTimer(activeSignal);
+  startSetupMonitor(activeSignal);
+  // Auto-send to Telegram when timer is set
+  sendToTelegram();
+}
+
+function startSignalTimer(a) {
+  timerActive = true;
+  if (signalTimerInterval) clearInterval(signalTimerInterval);
+  const minutes = EXPIRY_MINUTES[activeTimeframe] || 60;
+  signalExpiry = Date.now() + minutes * 60 * 1000;
+
+  signalTimerInterval = setInterval(() => {
+    const remaining = Math.max(0, signalExpiry - Date.now());
+    const pct = remaining / (minutes * 60 * 1000);
+    const display = document.getElementById('timerDisplay');
+    const status = document.getElementById('timerStatus');
+    if (!display) { clearInterval(signalTimerInterval); return; }
+
+    display.textContent = getTimerLabel();
+
+    if (remaining === 0) {
+      display.style.color = 'var(--accent3)';
+      display.textContent = 'EXPIRED';
+      if (status) { status.textContent = '⚠ Signal expired — re-run analysis'; status.style.color = 'var(--accent3)'; }
+      clearInterval(signalTimerInterval);
+      timerActive = false;
+      sendTelegramMessage(
+        `⏱ <b>SIGNAL EXPIRED — ${activeToken?.symbol}</b>\n\n` +
+        `Your ${activeTimeframe} ${a.signal} signal has expired.\n` +
+        `Re-run analysis before entering any trade.\n\n` +
+        `Last signal: <b>${a.signal}</b> at ${a.entry}`
+      );
+    } else if (pct < 0.2) {
+      display.style.color = 'var(--accent3)';
+      if (status) { status.textContent = '⚠ Expiring soon — act now or skip'; status.style.color = 'var(--accent3)'; }
+    } else if (pct < 0.5) {
+      display.style.color = 'var(--accent4)';
+      if (status) { status.textContent = 'Signal still valid'; status.style.color = 'var(--text3)'; }
+    } else {
+      display.style.color = 'var(--accent)';
+      if (status) { status.textContent = 'Signal fresh ✓'; status.style.color = 'var(--accent)'; }
+    }
+  }, 1000);
+}
+
+// ============================================================
+// SETUP MONITOR — checks if price moves past entry zone
+// ============================================================
+function startSetupMonitor(a) {
+  if (setupMonitorInterval) clearInterval(setupMonitorInterval);
+  if (!a.entry || a.signal === 'NEUTRAL') return;
+
+  const entryStr = a.entry.toString().replace(/[^0-9.]/g,'');
+  const entryPrice = parseFloat(entryStr);
+  const atr = parseFloat(a.stop) ? Math.abs(parseFloat(a.entry) - parseFloat(a.stop)) / 1.5 : 0;
+  if (!entryPrice || !atr) return;
+
+  let alerted = false;
+  let entryAlerted = false;
+
+  setupMonitorInterval = setInterval(async () => {
+    if (!activeToken || !signalExpiry || Date.now() > signalExpiry) {
+      clearInterval(setupMonitorInterval);
+      return;
+    }
+
+    const currentPrice = activeToken.price;
+    const diff = Math.abs(currentPrice - entryPrice);
+    const isBuy = a.signal === 'LONG';
+
+    // Entry zone alert — price is within 0.3% of entry
+    if (!entryAlerted && diff / entryPrice < 0.003) {
+      entryAlerted = true;
+      sendTelegramMessage(
+        `🎯 <b>ENTRY ZONE HIT — ${activeToken.symbol}</b>\n\n` +
+        `Price is near your entry zone!\n` +
+        `Current: <b>$${fmt(currentPrice)}</b>\n` +
+        `Entry: <b>${a.entry}</b>\n\n` +
+        `Signal: ${a.signal} | TP: ${a.target} | SL: ${a.stop}\n\n` +
+        `⚠️ NOT FINANCIAL ADVICE`
+      );
+    }
+
+    // Setup dead alert — price moved 1.5x ATR past entry in wrong direction
+    if (!alerted) {
+      const setupDead = isBuy
+        ? currentPrice < entryPrice - atr * 1.5
+        : currentPrice > entryPrice + atr * 1.5;
+
+      if (setupDead) {
+        alerted = true;
+        clearInterval(setupMonitorInterval);
+        // Update timer display
+        const display = document.getElementById('timerDisplay');
+        const status = document.getElementById('timerStatus');
+        if (display) { display.textContent = 'DEAD'; display.style.color = 'var(--accent3)'; }
+        if (status) { status.textContent = '❌ Setup invalidated — price moved against entry'; status.style.color = 'var(--accent3)'; }
+
+        sendTelegramMessage(
+          `❌ <b>SETUP DEAD — ${activeToken.symbol}</b>\n\n` +
+          `Price moved past the entry zone.\n` +
+          `Current: <b>$${fmt(currentPrice)}</b>\n` +
+          `Entry was: <b>${a.entry}</b>\n\n` +
+          `Signal is <b>INVALIDATED</b>. Do not enter this trade.\n` +
+          `Run fresh analysis if you still want to trade ${activeToken.symbol}.`
+        );
+      }
+    }
+  }, 15000); // check every 15 seconds
 }
 
 // TIMEFRAME
@@ -1617,8 +1839,12 @@ document.querySelector('.chart-area').addEventListener('touchend', e => {
 new ResizeObserver(drawChart).observe(document.querySelector('.chart-area'));
 
 // INIT
-fetchPrices();
-setInterval(fetchPrices, 60000);
+// INIT — check auth first then load
+initAuth().then(ok => {
+  if (!ok) return;
+  fetchPrices();
+  setInterval(fetchPrices, 60000);
+});
 </script>
 </body>
 </html>
