@@ -442,6 +442,7 @@ const SERVER = 'https://back-end-1-928p.onrender.com';
 const SUPABASE_URL = 'https://zttdlnavawepvhbtldgq.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_PiRo_l11XVyrqnhmn5NldQ_Ju0ItrBV';
 const NOTIFY_BOT_TOKEN = '8685607507:AAHSQ-8hz9ivTNaNmYTKy8Gl-l-ZQaNO9YQ';
+const NOTIFY_BOT_URL   = 'https://cipher-notification-bot.onrender.com';
 const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -1830,10 +1831,77 @@ function renderResult(a, isSimulated=false, dataSource='BINANCE') {
   // Store signal for manual timer activation
   activeSignal = a;
   timerActive = false;
+
+  // Check for signal reversal against last history entry for this token
+  checkSignalReversal(a, activeToken, activeTimeframe);
+
   // Save to history
   saveToHistory(a, activeToken, activeTimeframe);
+
+  // Register with notification bot for 24/7 monitoring
+  registerSignalForMonitoring(a, activeToken, activeTimeframe);
+
   // Auto send analysis to Telegram
   sendToTelegram();
+}
+
+// ============================================================
+// SIGNAL REVERSAL DETECTION
+// ============================================================
+function checkSignalReversal(newSignal, token, timeframe) {
+  if (!token || newSignal.signal === 'NEUTRAL') return;
+
+  // Find last analysis for this token + timeframe
+  const last = analysisHistory.find(h =>
+    h.symbol === token.symbol &&
+    h.timeframe === timeframe &&
+    h.signal !== 'NEUTRAL' &&
+    h.status === 'active'
+  );
+
+  if (!last) return;
+  if (last.signal === newSignal.signal) return; // Same direction — no reversal
+
+  // REVERSAL DETECTED!
+  const prevEmoji = last.signal === 'LONG' ? '🟢' : '🔴';
+  const newEmoji  = newSignal.signal === 'LONG' ? '🟢' : '🔴';
+
+  // Show reversal banner in AI tab
+  const outArea = document.getElementById('outArea');
+  if (outArea) {
+    const banner = document.createElement('div');
+    banner.style.cssText = 'padding:10px 14px;background:#ff3c6e15;border:1px solid #ff3c6e40;border-left:3px solid var(--accent3);margin-bottom:4px;animation:fadeUp 0.3s ease;';
+    banner.innerHTML = `
+      <div style="font-size:9px;color:var(--accent3);letter-spacing:2px;margin-bottom:4px;">🔄 SIGNAL REVERSAL DETECTED</div>
+      <div style="font-size:10px;color:var(--text2);line-height:1.6;">
+        Previous: ${prevEmoji} <b style="color:var(--text)">${last.signal}</b> from ${new Date(last.timestamp).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}<br>
+        New: ${newEmoji} <b style="color:var(--text)">${newSignal.signal}</b> (${newSignal.confidence}% confidence)
+      </div>
+      <div style="font-size:9px;color:var(--accent4);margin-top:6px;">⚠️ Consider closing your ${last.signal} and reviewing the new setup.</div>
+    `;
+    outArea.prepend(banner);
+  }
+
+  // Mark old entry as dead
+  const oldIdx = analysisHistory.findIndex(h => h.id === last.id);
+  if (oldIdx >= 0) {
+    analysisHistory[oldIdx].status = 'dead';
+    localStorage.setItem('cipherHistory', JSON.stringify(analysisHistory));
+  }
+
+  // Send Telegram notification
+  sendTelegramMessage(
+    `🔄 <b>SIGNAL REVERSAL — ${token.symbol}</b>\n\n` +
+    `Previous: ${prevEmoji} <b>${last.signal}</b> (from ${new Date(last.timestamp).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})})\n` +
+    `New: ${newEmoji} <b>${newSignal.signal}</b> (${newSignal.confidence}% confidence)\n\n` +
+    `📝 ${newSignal.reasoning || ''}\n\n` +
+    `🎯 New Entry: <b>${newSignal.entry}</b>\n` +
+    `✅ New TP: <b>${newSignal.target}</b>\n` +
+    `🛑 New SL: <b>${newSignal.stop}</b>\n\n` +
+    `⚠️ Consider closing your ${last.signal} position and reviewing the new setup.\n\n` +
+    `⚠️ NOT FINANCIAL ADVICE`,
+    'analysis'
+  );
 }
 
 // ============================================================
@@ -1842,6 +1910,31 @@ function renderResult(a, isSimulated=false, dataSource='BINANCE') {
 async function sendTelegramMessage(text, type='general') {
   // Use personal notification if user has linked Telegram
   await sendPersonalNotification(text, type);
+}
+
+async function registerSignalForMonitoring(a, token, timeframe) {
+  if (!currentUser || !a || !token) return;
+  if (!userProfile?.telegram_verified) return;
+  try {
+    const tfMap = {'1H':'1h','4H':'4h','1D':'1d','1W':'1w'};
+    await fetch(`${NOTIFY_BOT_URL}/register-signal`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        user_id:   currentUser.id,
+        symbol:    token.symbol,
+        signal:    a.signal,
+        entry:     a.entry,
+        target:    a.target,
+        stop:      a.stop,
+        timeframe: tfMap[timeframe] || '1h',
+        price:     token.price,
+      })
+    });
+    console.log(`Signal registered: ${token.symbol} ${a.signal}`);
+  } catch(e) {
+    console.error('Register signal error:', e);
+  }
 }
 
 async function sendToTelegram() {
