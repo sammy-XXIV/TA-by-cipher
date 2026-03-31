@@ -288,8 +288,8 @@
   <div class="header-right">
     <div class="dot-pill"><div class="dot green"></div>LIVE</div>
     <div class="dot-pill"><div class="dot blue"></div>AI</div>
+    <button onclick="showScannerPage()" style="background:none;border:1px solid #00ff9d40;color:var(--accent);font-family:'Share Tech Mono',monospace;font-size:10px;padding:4px 8px;cursor:pointer;letter-spacing:1px;">⚡ SCAN</button>
     <button onclick="window.location.href='cipher_settings.html'" style="background:none;border:1px solid var(--border2);color:var(--text2);font-family:'Share Tech Mono',monospace;font-size:10px;padding:4px 8px;cursor:pointer;letter-spacing:1px;">⚙</button>
-    <button onclick="openHistory()" style="background:none;border:1px solid var(--border2);color:var(--accent);font-family:'Share Tech Mono',monospace;font-size:10px;padding:4px 8px;cursor:pointer;letter-spacing:1px;" title="Analysis History">📋</button>
   </div>
 </header>
 
@@ -427,6 +427,31 @@
           <div class="empty-icon">📋</div>
           No analysis history yet.<br>Run analysis to start tracking.
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCANNER PAGE -->
+  <div class="page" id="scannerPage">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border2);background:var(--bg2);flex-shrink:0;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button onclick="goHome()" style="background:none;border:1px solid var(--border2);color:var(--accent2);font-family:'Share Tech Mono',monospace;font-size:10px;padding:5px 10px;cursor:pointer;letter-spacing:1px;">← BACK</button>
+        <div style="font-family:'Orbitron',sans-serif;font-size:13px;color:var(--accent);letter-spacing:3px;">CIPHER</div>
+      </div>
+      <div style="font-size:9px;color:var(--text3);letter-spacing:2px;">MEXC SCANNER</div>
+    </div>
+
+    <!-- Scan button + status -->
+    <div style="padding:10px 14px;border-bottom:1px solid var(--border);background:var(--bg3);flex-shrink:0;display:flex;align-items:center;gap:10px;">
+      <button onclick="runMexcScan()" id="scanBtn" style="background:var(--accent);color:#020408;border:none;font-family:'Orbitron',monospace;font-size:10px;font-weight:700;padding:8px 16px;cursor:pointer;letter-spacing:2px;flex-shrink:0;">⚡ SCAN NOW</button>
+      <div id="scanStatus" style="font-size:9px;color:var(--text3);letter-spacing:1px;">Tap SCAN NOW to find top opportunities on MEXC</div>
+    </div>
+
+    <!-- Results — sectioned -->
+    <div id="scanResults" style="overflow-y:auto;flex:1;">
+      <div class="empty" id="scanEmpty">
+        <div class="empty-icon">⚡</div>
+        Tap SCAN NOW to find<br>top trading opportunities
       </div>
     </div>
   </div>
@@ -911,6 +936,194 @@ function saveToHistory(a, token, timeframe) {
 
 function showHistoryPage() {}
 
+// ============================================================
+// MEXC SCANNER — Sectioned by method
+// ============================================================
+let scanData = [];
+
+function showScannerPage() {
+  document.querySelectorAll('.page').forEach(p => p.className = 'page');
+  document.getElementById('scannerPage').className = 'page visible';
+}
+
+const SECTORS = {
+  'Layer 1':  ['BTC','ETH','SOL','AVAX','ADA','DOT','ATOM','NEAR','FTM','ONE','ALGO','EGLD','HBAR','SUI','APT','SEI','INJ','TIA','DYMENSION'],
+  'Layer 2':  ['MATIC','ARB','OP','IMX','LRC','METIS','BOBA','SKL','STRK','MANTA','BLAST'],
+  'DeFi':     ['UNI','AAVE','COMP','MKR','SNX','CRV','BAL','SUSHI','1INCH','GMX','DYDX','PENDLE','JUP','RAY','ORCA'],
+  'Meme':     ['DOGE','SHIB','PEPE','BONK','WIF','FLOKI','BABYDOGE','MEME','BRETT','POPCAT','MOG'],
+  'AI':       ['FET','AGIX','OCEAN','RLC','NMR','GRT','RNDR','TAO','WLD','ARKM','AIXBT'],
+  'Gaming':   ['AXS','SAND','MANA','ENJ','GALA','ILV','MAGIC','BEAM','RON','PIXEL'],
+  'Exchange': ['BNB','OKB','CRO','KCS','HT','MX'],
+  'RWA':      ['ONDO','CFG','RIO','POLYX','CPOOL'],
+};
+const STABLES = ['USDT','USDC','BUSD','DAI','TUSD','USDP','FRAX','FDUSD','PYUSD','USDD'];
+
+async function runMexcScan() {
+  const btn = document.getElementById('scanBtn');
+  const status = document.getElementById('scanStatus');
+  const empty = document.getElementById('scanEmpty');
+  const results = document.getElementById('scanResults');
+
+  btn.textContent = '⟳ SCANNING...'; btn.disabled = true;
+  status.textContent = 'Fetching MEXC markets...';
+  status.style.color = 'var(--accent2)';
+  results.innerHTML = '';
+  empty.style.display = 'none';
+
+  try {
+    const r = await fetch(`${SERVER}/tickers`);
+    const allTickers = await r.json();
+    if (!allTickers || !Object.keys(allTickers).length) throw new Error('No data from server');
+
+    status.textContent = `Processing ${Object.keys(allTickers).length} tokens...`;
+
+    const tokens = [];
+    for (const [sym, d] of Object.entries(allTickers)) {
+      if (!d.price || d.price <= 0) continue;
+      if (STABLES.includes(sym)) continue;
+      if (d.price < 0.0000001) continue;
+
+      const rangePercent = d.high && d.low ? ((d.high - d.low) / d.low) * 100 : 0;
+      const sector = getTokenSector(sym);
+
+      tokens.push({
+        sym, price: d.price,
+        change: d.change || 0,
+        high: d.high || d.price,
+        low: d.low || d.price,
+        rangePercent,
+        sources: d.sources || 1,
+        sector,
+      });
+    }
+
+    // ── METHOD 1: Volume Spikes (high range = unusual activity)
+    const volumeSpikes = [...tokens]
+      .filter(t => t.rangePercent > 8)
+      .sort((a,b) => b.rangePercent - a.rangePercent)
+      .slice(0, 5);
+
+    // ── METHOD 2: Momentum — biggest movers up
+    const topGainers = [...tokens]
+      .filter(t => t.change > 3)
+      .sort((a,b) => b.change - a.change)
+      .slice(0, 5);
+
+    // ── METHOD 3: Potential reversals — biggest losers (oversold bounce)
+    const potentialReversals = [...tokens]
+      .filter(t => t.change < -8)
+      .sort((a,b) => a.change - b.change)
+      .slice(0, 5);
+
+    // ── METHOD 4: BTC Laggards — tokens that haven't moved yet
+    // BTC's 24H change as benchmark
+    const btcChange = tokens.find(t => t.sym === 'BTC')?.change || 0;
+    const btcLaggards = [...tokens]
+      .filter(t => btcChange > 2 && t.change < btcChange * 0.3 && t.change > -2)
+      .sort((a,b) => a.change - b.change)
+      .slice(0, 5);
+
+    // ── METHOD 5: Sector leaders — top performer per sector
+    const sectorLeaders = [];
+    for (const [sector, syms] of Object.entries(SECTORS)) {
+      const sectorTokens = tokens.filter(t => syms.includes(t.sym)).sort((a,b) => b.change - a.change);
+      if (sectorTokens.length) sectorLeaders.push({ ...sectorTokens[0], sectorLabel: sector });
+    }
+    sectorLeaders.sort((a,b) => b.change - a.change);
+
+    // ── METHOD 6: Near 24H High (breakout candidates)
+    const breakouts = [...tokens]
+      .filter(t => t.high > 0 && (t.price / t.high) > 0.92 && t.change > 2)
+      .sort((a,b) => (b.price/b.high) - (a.price/a.high))
+      .slice(0, 5);
+
+    // ── METHOD 7: Near 24H Low (bounce candidates)
+    const bounceCandidates = [...tokens]
+      .filter(t => t.low > 0 && (t.price / t.low) < 1.05 && t.change < -5)
+      .sort((a,b) => (a.price/a.low) - (b.price/b.low))
+      .slice(0, 5);
+
+    scanData = tokens;
+    status.textContent = `Scan complete — ${tokens.length} tokens analysed`;
+    status.style.color = 'var(--accent)';
+
+    // Render all sections
+    results.innerHTML = [
+      renderScanSection('📊 VOLUME SPIKES', 'Unusual activity — 3x+ normal range', volumeSpikes, '#00c9ff'),
+      renderScanSection('🚀 TOP GAINERS', 'Strong momentum — potential continuation', topGainers, '#00ff9d'),
+      renderScanSection('🎯 REVERSAL WATCH', 'Oversold — potential bounce incoming', potentialReversals, '#ff6b6b'),
+      btcLaggards.length ? renderScanSection('⏳ BTC LAGGARDS', `BTC up ${btcChange.toFixed(1)}% but these haven't moved yet`, btcLaggards, '#fbbf24') : '',
+      renderScanSection('💥 BREAKOUT CANDIDATES', 'Price near 24H high — potential breakout', breakouts, '#a78bfa'),
+      renderScanSection('📉 BOUNCE CANDIDATES', 'Price near 24H low — potential reversal', bounceCandidates, '#f97316'),
+      renderScanSection('🏆 SECTOR LEADERS', 'Top performer in each sector', sectorLeaders, '#60a5fa'),
+    ].join('');
+
+  } catch(e) {
+    status.textContent = `❌ Scan failed: ${e.message}`;
+    status.style.color = 'var(--accent3)';
+    empty.style.display = 'block';
+  }
+
+  btn.textContent = '⚡ SCAN NOW'; btn.disabled = false;
+}
+
+function getTokenSector(sym) {
+  for (const [sector, syms] of Object.entries(SECTORS)) {
+    if (syms.includes(sym)) return sector;
+  }
+  return 'Other';
+}
+
+function renderScanSection(title, subtitle, tokens, color) {
+  if (!tokens.length) return '';
+  const rows = tokens.map(t => {
+    const changeColor = t.change >= 0 ? 'var(--accent)' : 'var(--accent3)';
+    const changeSign  = t.change >= 0 ? '+' : '';
+    const sectorLabel = t.sectorLabel || t.sector || '';
+    return `
+      <div onclick="loadScanToken('${t.sym}')" style="padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;align-items:center;gap:10px;" onmouseover="this.style.background='#ffffff08'" onmouseout="this.style.background='transparent'">
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">
+            <span style="font-family:'Orbitron',sans-serif;font-size:13px;color:var(--text);font-weight:700;">${t.sym}</span>
+            ${sectorLabel ? `<span style="font-size:7px;padding:1px 5px;border:1px solid ${color}40;color:${color};letter-spacing:1px;">${sectorLabel}</span>` : ''}
+          </div>
+          <div style="font-size:10px;color:var(--text2);">${fmt(t.price)}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="font-size:13px;font-weight:700;color:${changeColor};">${changeSign}${t.change.toFixed(2)}%</div>
+          <div style="font-size:8px;color:var(--text3);">Range ${t.rangePercent.toFixed(1)}%</div>
+        </div>
+        <div style="font-size:12px;color:var(--text3);">›</div>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div style="border-left:3px solid ${color};margin:8px 0 0 0;">
+      <div style="padding:10px 14px;background:${color}10;border-bottom:1px solid ${color}20;">
+        <div style="font-size:11px;color:${color};letter-spacing:2px;font-weight:700;margin-bottom:2px;">${title}</div>
+        <div style="font-size:8px;color:var(--text3);letter-spacing:1px;">${subtitle}</div>
+      </div>
+      ${rows}
+    </div>
+  `;
+}
+
+async function loadScanToken(sym) {
+  const existing = TOKENS.find(t => t.symbol === sym);
+  if (existing) { goHome(); await goDetail(existing.id); return; }
+  try {
+    const r = await fetch(`${SERVER}/ticker?symbol=${sym}`);
+    const d = await r.json();
+    if (d.price) {
+      const token = { id: sym.toLowerCase(), symbol: sym, name: sym, price: d.price, change: d.change, high: d.high, low: d.low, rank: 999, priceSource: d.source };
+      TOKENS.unshift(token);
+      goHome();
+      await goDetail(token.id);
+    }
+  } catch(e) { console.error('loadScanToken:', e); }
+}
+
 function openHistory() {
   // If on detail page — just switch to history tab
   const detailPage = document.getElementById('detailPage');
@@ -1288,25 +1501,6 @@ function updateIndicators() {
   }
   const vwap=cumTPV/cumVol;
 
-  // Fibonacci Retracement
-  const swingHigh=Math.max(...highs.slice(-50));
-  const swingLow=Math.min(...lows.slice(-50));
-  const fibRange=swingHigh-swingLow;
-  const fib236=swingHigh-fibRange*0.236;
-  const fib382=swingHigh-fibRange*0.382;
-  const fib500=swingHigh-fibRange*0.500;
-  const fib618=swingHigh-fibRange*0.618;
-  const fib786=swingHigh-fibRange*0.786;
-
-  // Volume Profile — find highest volume price zone
-  const priceStep=fibRange/10;
-  const volumeBuckets={};
-  chartData.forEach(c=>{
-    const bucket=Math.floor(c.close/priceStep)*priceStep;
-    volumeBuckets[bucket]=(volumeBuckets[bucket]||0)+c.vol;
-  });
-  const pocPrice=Object.entries(volumeBuckets).sort((a,b)=>b[1]-a[1])[0]?.[0];
-
   // ADX (14) — Trend Strength
   let adx = 0;
   try {
@@ -1336,66 +1530,16 @@ function updateIndicators() {
     adx=Math.round(dxArr.slice(-14).reduce((a,b)=>a+b,0)/Math.min(14,dxArr.length));
   } catch(e){}
 
-  // RSI Divergence Detection
-  let divergence = 'NONE';
-  try {
-    const lookback = 20;
-    const recentCloses = closes.slice(-lookback);
-    const recentHighs = highs.slice(-lookback);
-    const recentLows = lows.slice(-lookback);
-    // Calculate RSI for last lookback candles
-    const rsiSeries = [];
-    for(let i=14;i<lookback;i++){
-      let gg=0,ll=0;
-      for(let j=i-13;j<=i;j++){const d=recentCloses[j]-recentCloses[j-1];d>0?gg+=d:ll-=d;}
-      rsiSeries.push(100-(100/(1+(ll===0?100:gg/ll))));
-    }
-    if(rsiSeries.length>=2){
-      const priceEnd=recentCloses[recentCloses.length-1];
-      const priceMid=recentCloses[Math.floor(recentCloses.length/2)];
-      const rsiEnd=rsiSeries[rsiSeries.length-1];
-      const rsiMid=rsiSeries[Math.floor(rsiSeries.length/2)];
-      // Bearish divergence: price higher but RSI lower
-      if(priceEnd>priceMid&&rsiEnd<rsiMid) divergence='BEARISH';
-      // Bullish divergence: price lower but RSI higher
-      else if(priceEnd<priceMid&&rsiEnd>rsiMid) divergence='BULLISH';
-    }
-  } catch(e){}
-
-  // Candlestick Pattern Detection (last 3 candles)
-  let candlePattern = 'NONE';
-  try {
-    const last = chartData[n-1];
-    const prev = chartData[n-2];
-    const prev2 = chartData[n-3];
-    const body = Math.abs(last.close-last.open);
-    const range = last.high-last.low;
-    const upperWick = last.high-Math.max(last.open,last.close);
-    const lowerWick = Math.min(last.open,last.close)-last.low;
-    const isGreen = last.close>last.open;
-    const prevGreen = prev.close>prev.open;
-    // Doji
-    if(body/range<0.1) candlePattern='DOJI (indecision)';
-    // Hammer (bullish)
-    else if(!isGreen&&lowerWick>body*2&&upperWick<body*0.5) candlePattern='HAMMER (bullish reversal)';
-    // Shooting Star (bearish)
-    else if(isGreen&&upperWick>body*2&&lowerWick<body*0.5) candlePattern='SHOOTING STAR (bearish reversal)';
-    // Bullish Engulfing
-    else if(isGreen&&!prevGreen&&last.open<prev.close&&last.close>prev.open) candlePattern='BULLISH ENGULFING';
-    // Bearish Engulfing
-    else if(!isGreen&&prevGreen&&last.open>prev.close&&last.close<prev.open) candlePattern='BEARISH ENGULFING';
-    // Morning Star
-    else if(isGreen&&Math.abs(prev.close-prev.open)/(prev.high-prev.low)<0.2&&!prev2.close>prev2.open) candlePattern='MORNING STAR (bullish)';
-  } catch(e){}
-
   // Volume Confirmation
   const avgVol = vols.slice(-20).reduce((a,b)=>a+b,0)/20;
   const lastVol = vols[n-1];
   const volumeStrength = lastVol>avgVol*1.5?'HIGH (strong confirmation)':lastVol>avgVol?'ABOVE AVERAGE':lastVol<avgVol*0.5?'LOW (weak signal)':'AVERAGE';
 
-  // Support & Resistance
+  // Support & Resistance (swing highs/lows)
   const sup=Math.min(...lows.slice(-20));
   const res=Math.max(...highs.slice(-20));
+  const swingHigh=Math.max(...highs.slice(-50));
+  const swingLow=Math.min(...lows.slice(-50));
 
   document.getElementById('s24h').textContent=fmt(activeToken.high);
   document.getElementById('sLow').textContent=fmt(activeToken.low);
@@ -1403,7 +1547,7 @@ function updateIndicators() {
   document.getElementById('sRes').textContent=fmt(res);
   document.getElementById('statsGrid').style.display='grid';
 
-  return {rsi, macd, stochRsi, atr, vwap, fib236, fib382, fib500, fib618, fib786, pocPrice: parseFloat(pocPrice), sup, res, swingHigh, swingLow, adx, divergence, candlePattern, volumeStrength};
+  return {rsi, macd, atr, vwap, sup, res, swingHigh, swingLow, adx, volumeStrength};
 }
 
 // AI ANALYSIS
@@ -1422,7 +1566,7 @@ async function runAnalysis() {
       <div class="prog-lbl" id="pLbl">0%</div>
     </div>`;
 
-  const steps=[[5,'CALCULATING INDICATORS'],[12,'FETCHING HIGHER TIMEFRAME'],[22,'FETCHING ORDER BOOK'],[32,'FETCHING PREV DAY LEVELS'],[42,'FETCHING SENTIMENT'],[55,'RUNNING TA ENGINE'],[68,'DETECTING PATTERNS'],[80,'GENERATING SIGNALS'],[90,'CALCULATING TARGETS'],[92,'FINALIZING ANALYSIS']];
+  const steps=[[5,'FETCHING FRESH CANDLES'],[20,'CALCULATING INDICATORS'],[40,'FETCHING MARKET DATA'],[60,'RUNNING TA ENGINE'],[80,'GENERATING SIGNAL'],[92,'FINALIZING ANALYSIS']];
   let si=0;
   const tick=setInterval(()=>{
     if(si<steps.length){
@@ -1505,7 +1649,7 @@ async function runAnalysis() {
   const freshAtr=fatrSum/14;
 
   const ind=updateIndicators()||{};
-  const {stochRsi=50,vwap=0,fib236=0,fib382=0,fib500=0,fib618=0,fib786=0,pocPrice=0,adx=0,divergence='NONE',candlePattern='NONE',volumeStrength='AVERAGE'}=ind;
+  const {vwap=0,adx=0,volumeStrength='AVERAGE'}=ind;
   const rsi=freshRsi, macd=freshMacd, atr=freshAtr;
   const sup=Math.min(...freshLows.slice(-20));
   const res=Math.max(...freshHighs.slice(-20));
@@ -1515,75 +1659,34 @@ async function runAnalysis() {
   const bs=closes.slice(-20),bm=bs.reduce((a,b)=>a+b)/20;
   const bstd=Math.sqrt(bs.reduce((a,b)=>a+(b-bm)**2,0)/20);
 
-  // Multi-timeframe Analysis — fetch higher timeframe
-  let htfBias = 'UNKNOWN';
-  let htfRsi = 0;
-  try {
-    const htfInterval = activeTimeframe==='1H'?'4h':activeTimeframe==='4H'?'1d':'1w';
-    const htfLabel = activeTimeframe==='1H'?'4H':activeTimeframe==='4H'?'1D':'1W';
-    const symbol = activeToken.symbol+'USDT';
-    const htfRes = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${htfInterval}&limit=50`).then(r=>r.json());
-    if(Array.isArray(htfRes)&&htfRes.length){
-      const htfCloses=htfRes.map(c=>parseFloat(c[4]));
-      const htfN=htfCloses.length;
-      let hg=0,hl=0;
-      for(let i=1;i<=14;i++){const d=htfCloses[i]-htfCloses[i-1];d>0?hg+=d:hl-=d;}
-      htfRsi=Math.round(100-(100/(1+(hl===0?100:hg/hl))));
-      const htfEma20=ema(htfCloses,20),htfEma50=ema(htfCloses,50);
-      const htfPrice=htfCloses[htfN-1];
-      const htfAboveEmas=htfPrice>htfEma20[htfN-1]&&htfPrice>htfEma50[htfN-1];
-      htfBias=`${htfLabel} timeframe: ${htfAboveEmas?'BULLISH':'BEARISH'} — RSI ${htfRsi} — Price ${htfAboveEmas?'above':'below'} EMAs`;
-    }
-  } catch(e){}
 
-  // Fetch Funding Rate & Open Interest from Binance
-  let fundingRate = 'N/A', openInterest = 'N/A';
+  // Fetch Funding Rate from Binance futures
+  let fundingRate = 'N/A';
   try {
     const symbol = activeToken.symbol + 'USDT';
-    const [frRes, oiRes] = await Promise.all([
-      fetch(`https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&limit=1`).then(r=>r.json()),
-      fetch(`https://fapi.binance.com/fapi/v1/openInterest?symbol=${symbol}`).then(r=>r.json()),
-    ]);
+    const frRes = await fetch(`https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&limit=1`).then(r=>r.json());
     if (Array.isArray(frRes) && frRes[0]) {
       const fr = parseFloat(frRes[0].fundingRate) * 100;
       fundingRate = `${fr.toFixed(4)}% ${fr > 0.1 ? '(OVERLEVERAGED LONG — short squeeze risk)' : fr < -0.1 ? '(OVERLEVERAGED SHORT — long squeeze risk)' : '(NEUTRAL)'}`;
     }
-    if (oiRes?.openInterest) {
-      openInterest = parseFloat(oiRes.openInterest).toLocaleString();
-    }
   } catch(e) {}
 
-  // Order Book Imbalance (Binance spot)
-  let orderBookBias = 'N/A';
-  let bidAskRatio = 0;
-  try {
-    const symbol = activeToken.symbol + 'USDT';
-    const ob = await fetch(`https://api.binance.com/api/v3/depth?symbol=${symbol}&limit=20`).then(r=>r.json());
-    if (ob.bids && ob.asks) {
-      const totalBids = ob.bids.reduce((sum, b) => sum + parseFloat(b[0]) * parseFloat(b[1]), 0);
-      const totalAsks = ob.asks.reduce((sum, a) => sum + parseFloat(a[0]) * parseFloat(a[1]), 0);
-      bidAskRatio = (totalBids / (totalBids + totalAsks) * 100).toFixed(1);
-      orderBookBias = `${bidAskRatio}% BID pressure ${bidAskRatio > 60 ? '(STRONG BUYING — bullish)' : bidAskRatio < 40 ? '(STRONG SELLING — bearish)' : '(BALANCED)'}`;
-    }
-  } catch(e) {}
-
-  // Previous Day High/Low (from daily candles)
-  let prevDayHigh = 0, prevDayLow = 0, prevDayClose = 0;
+  // Previous Day High/Low/Close (institutional levels)
   let pdLevels = 'N/A';
   try {
     const symbol = activeToken.symbol + 'USDT';
     const daily = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1d&limit=2`).then(r=>r.json());
     if (Array.isArray(daily) && daily.length >= 2) {
       const yesterday = daily[daily.length - 2];
-      prevDayHigh  = parseFloat(yesterday[2]);
-      prevDayLow   = parseFloat(yesterday[3]);
-      prevDayClose = parseFloat(yesterday[4]);
-      const aboveClose = cp > prevDayClose ? 'ABOVE prev close (bullish)' : 'BELOW prev close (bearish)';
-      pdLevels = `PDH: ${fmt(prevDayHigh)} | PDL: ${fmt(prevDayLow)} | PDC: ${fmt(prevDayClose)} — Price ${aboveClose}`;
+      const pdh = parseFloat(yesterday[2]);
+      const pdl = parseFloat(yesterday[3]);
+      const pdc = parseFloat(yesterday[4]);
+      const aboveClose = cp > pdc ? 'ABOVE prev close (bullish)' : 'BELOW prev close (bearish)';
+      pdLevels = `PDH: ${fmt(pdh)} | PDL: ${fmt(pdl)} | PDC: ${fmt(pdc)} — Price ${aboveClose}`;
     }
   } catch(e) {}
 
-  // Fetch Fear & Greed Index
+  // Fear & Greed Index
   let fearGreed = 'UNKNOWN';
   let fearGreedValue = '';
   try {
@@ -1595,8 +1698,8 @@ async function runAnalysis() {
   } catch(e) {}
 
 
-  const prompt=`You are CIPHER, elite AI crypto technical analyst with deep expertise in quantitative analysis. Analyze ${activeToken.symbol} using ALL provided data and give sharp actionable predictions.
-${usingSimulated ? '\n⚠ WARNING: Binance data unavailable. Analysis based on SIMULATED data — lower confidence recommended.\n' : ''}
+  const prompt=`You are CIPHER, elite AI crypto technical analyst. Analyze ${activeToken.symbol} using the provided data and give sharp actionable predictions.
+${usingSimulated ? '\n⚠ WARNING: Chart data unavailable. Analysis based on SIMULATED data — lower confidence recommended.\n' : ''}
 TOKEN: ${activeToken.symbol} (${activeToken.name})
 TIMEFRAME: ${activeTimeframe}
 CURRENT PRICE: ${fmt(cp)}
@@ -1605,70 +1708,39 @@ DATA SOURCE: ${dataSource}
 
 MARKET SENTIMENT:
 - Fear & Greed Index: ${fearGreed}${fearGreedValue !== '' ? (fearGreedValue < 25 ? ' ← Extreme fear, potential buy zone' : fearGreedValue > 75 ? ' ← Extreme greed, potential sell zone' : '') : ''}
-
-MULTI-TIMEFRAME:
-- ${htfBias}
-
-DERIVATIVES DATA:
 - Funding Rate: ${fundingRate}
-- Open Interest: ${openInterest}
+- Previous Day Levels: ${pdLevels}
 
-ORDER BOOK (Real-time):
-- ${orderBookBias}
-
-PREVIOUS DAY LEVELS (Institutional):
-- ${pdLevels}
-
-TREND INDICATORS:
+TREND:
 - EMA20: ${fmt(e20[n-1])} — price ${cp>e20[n-1]?'ABOVE (bullish)':'BELOW (bearish)'}
 - EMA50: ${fmt(e50[n-1])} — price ${cp>e50[n-1]?'ABOVE (bullish)':'BELOW (bearish)'}
 - VWAP: ${fmt(vwap)} — price ${cp>vwap?'ABOVE (bullish)':'BELOW (bearish)'}
-- ADX(14): ${adx} ${adx>25?'(STRONG TREND)':adx>20?'(DEVELOPING TREND)':'(WEAK/RANGING — caution trading signals)'}
+- ADX(14): ${adx} ${adx>25?'(STRONG TREND — trade it)':adx>20?'(DEVELOPING TREND)':'(WEAK/RANGING — avoid breakouts)'}
 
-MOMENTUM INDICATORS:
-- RSI(14): ${rsi} ${rsi>70?'(OVERBOUGHT)':rsi<30?'(OVERSOLD)':'(NEUTRAL)'}
-- Stochastic RSI: ${stochRsi} ${stochRsi>80?'(OVERBOUGHT)':stochRsi<20?'(OVERSOLD)':'(NEUTRAL)'}
+MOMENTUM:
+- RSI(14): ${rsi} ${rsi>70?'(OVERBOUGHT — caution longs)':rsi<30?'(OVERSOLD — potential bounce)':'(NEUTRAL)'}
 - MACD: ${macd>0?'BULLISH':'BEARISH'} (${macd.toFixed(4)})
-- RSI Divergence: ${divergence} ${divergence!=='NONE'?'← STRONG REVERSAL SIGNAL':''}
-
-PRICE ACTION:
-- Candlestick Pattern: ${candlePattern}
-- Volume: ${volumeStrength}
 
 VOLATILITY:
 - ATR(14): ${fmt(atr)} (${((atr/cp)*100).toFixed(2)}% of price)
-- Bollinger Upper: ${fmt(bm+2*bstd)} Lower: ${fmt(bm-2*bstd)} Mid: ${fmt(bm)}
+- Bollinger Upper: ${fmt(bm+2*bstd)} | Lower: ${fmt(bm-2*bstd)} | Mid: ${fmt(bm)}
+- Price position: ${cp > bm+2*bstd ? 'ABOVE UPPER BAND (overbought)' : cp < bm-2*bstd ? 'BELOW LOWER BAND (oversold)' : cp > bm ? 'ABOVE MID (bullish)' : 'BELOW MID (bearish)'}
+
+VOLUME:
+- Strength: ${volumeStrength}
 
 KEY LEVELS:
 - Support: ${fmt(sup)} | Resistance: ${fmt(res)}
 - Swing High: ${fmt(swingHigh)} | Swing Low: ${fmt(swingLow)}
-- POC (High Volume Zone): ${fmt(pocPrice)}
 
-FIBONACCI RETRACEMENTS:
-- 23.6%: ${fmt(fib236)}
-- 38.2%: ${fmt(fib382)}
-- 50.0%: ${fmt(fib500)}
-- 61.8%: ${fmt(fib618)} ← Golden ratio
-- 78.6%: ${fmt(fib786)}
-
-Based on ALL the above data, provide a comprehensive analysis. 
+Based on the above data, provide a comprehensive analysis.
 - Set STOP LOSS at 1.5x ATR from entry
-- Set TAKE PROFIT at 3x ATR from entry (1:2 Risk/Reward minimum)
-- Calculate ROI % based on entry to take profit
-- Calculate Risk/Reward ratio
-- Identify caution flags (overbought RSI, price near Bollinger band, conflicting signals)
-- Give confirmation levels — what needs to happen to confirm the signal
-- Give alternative scenario — what to do if the signal fails
-- Recommend position size using this table:
-  * 55-65% confidence = 5% of capital
-  * 65-75% confidence = 10-15% of capital
-  * 75-85% confidence = 20-25% of capital
-  * 85-92% confidence = 30% of capital
-  * 92%+ confidence = max 40% of capital
-  * HIGH risk = reduce recommended size by half
+- Set TAKE PROFIT at 3x ATR from entry (1:2 minimum R/R)
+- Only give HIGH confidence (80%+) when trend, momentum AND volume all agree
+- Give NEUTRAL if ADX < 20 (no clear trend)
 
 Respond ONLY with JSON (no markdown):
-{"signal":"LONG or SHORT or NEUTRAL","confidence":55-95,"accuracy":55-92,"bias":"punchy uppercase one-liner","reasoning":"3-4 sentences covering trend, momentum, volume, and key levels","caution":"1-2 sentences on specific caution flags e.g. RSI near overbought, price at resistance","confirmation":"1-2 sentences on what confirms the signal e.g. break above X with volume","alternative":"1-2 sentences on what to do if signal fails e.g. wait for pullback to EMA20","entry":"specific entry price","target":"take profit price (3x ATR from entry)","stop":"stop loss price (1.5x ATR from entry)","rr_ratio":"risk reward ratio e.g. 1:2","roi":"expected ROI % if TP is hit e.g. +4.2%","position_size":"recommended % of capital e.g. 20% of capital","risk":"LOW or MEDIUM or HIGH","risk_reason":"one sentence explaining risk using ATR and volatility","sentiment_impact":"one sentence on Fear & Greed and funding rate impact"}`;
+{"signal":"LONG or SHORT or NEUTRAL","confidence":55-95,"accuracy":55-92,"bias":"punchy uppercase one-liner","reasoning":"3-4 sentences covering trend, momentum, volume, and key levels","caution":"1-2 sentences on specific caution flags","confirmation":"what needs to happen to confirm the signal","alternative":"what to do if signal fails","entry":"specific entry price","target":"take profit price (3x ATR from entry)","stop":"stop loss price (1.5x ATR from entry)","rr_ratio":"risk reward ratio e.g. 1:2","roi":"expected ROI % if TP is hit e.g. +4.2%","position_size":"recommended % of capital","risk":"LOW or MEDIUM or HIGH","risk_reason":"one sentence explaining risk","sentiment_impact":"one sentence on Fear & Greed and funding rate impact"}`;
 
   try {
     const r=await fetch(`${SERVER}/analyze`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt})});
@@ -2456,3 +2528,4 @@ initAuth().then(ok => {
 </script>
 </body>
 </html>
+
