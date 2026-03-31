@@ -288,7 +288,7 @@
   <div class="header-right">
     <div class="dot-pill"><div class="dot green"></div>LIVE</div>
     <div class="dot-pill"><div class="dot blue"></div>AI</div>
-    <button onclick="showScannerPage()" style="background:none;border:1px solid #00ff9d40;color:var(--accent);font-family:'Share Tech Mono',monospace;font-size:10px;padding:4px 8px;cursor:pointer;letter-spacing:1px;">⚡ SCAN</button>
+    <button onclick="showScannerPage()" id="scanNavBtn" style="background:none;border:1px solid #00ff9d40;color:var(--accent);font-family:'Share Tech Mono',monospace;font-size:10px;padding:4px 8px;cursor:pointer;letter-spacing:1px;">⚡ SCAN</button>
     <button onclick="window.location.href='cipher_settings.html'" style="background:none;border:1px solid var(--border2);color:var(--text2);font-family:'Share Tech Mono',monospace;font-size:10px;padding:4px 8px;cursor:pointer;letter-spacing:1px;">⚙</button>
   </div>
 </header>
@@ -433,14 +433,6 @@
 
   <!-- SCANNER PAGE -->
   <div class="page hidden-right" id="scannerPage">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border2);background:var(--bg2);flex-shrink:0;">
-      <div style="display:flex;align-items:center;gap:10px;">
-        <button onclick="goHome()" style="background:none;border:1px solid var(--border2);color:var(--accent2);font-family:'Share Tech Mono',monospace;font-size:10px;padding:5px 10px;cursor:pointer;letter-spacing:1px;">← BACK</button>
-        <div style="font-family:'Orbitron',sans-serif;font-size:13px;color:var(--accent);letter-spacing:3px;">CIPHER</div>
-      </div>
-      <div style="font-size:9px;color:var(--text3);letter-spacing:2px;">MEXC SCANNER</div>
-    </div>
-
     <!-- Scan button + status -->
     <div style="padding:10px 14px;border-bottom:1px solid var(--border);background:var(--bg3);flex-shrink:0;display:flex;align-items:center;gap:10px;">
       <button onclick="runMexcScan()" id="scanBtn" style="background:var(--accent);color:#020408;border:none;font-family:'Orbitron',monospace;font-size:10px;font-weight:700;padding:8px 16px;cursor:pointer;letter-spacing:2px;flex-shrink:0;">⚡ SCAN NOW</button>
@@ -519,6 +511,8 @@ function goHome() {
   document.getElementById('detailPage').className = 'page hidden-right';
   document.getElementById('scannerPage').className = 'page hidden-right';
   document.getElementById('backBtn').classList.remove('show');
+  const btn = document.getElementById('scanNavBtn');
+  if (btn) { btn.textContent = '⚡ SCAN'; btn.onclick = showScannerPage; }
 }
 
 async function goDetail(id) {
@@ -946,6 +940,8 @@ function showScannerPage() {
   document.getElementById('homePage').className = 'page hidden-left';
   document.getElementById('detailPage').className = 'page hidden-right';
   document.getElementById('scannerPage').className = 'page visible';
+  const btn = document.getElementById('scanNavBtn');
+  if (btn) { btn.textContent = '✕ CLOSE'; btn.onclick = goHome; }
 }
 
 const SECTORS = {
@@ -973,7 +969,9 @@ async function runMexcScan() {
   empty.style.display = 'none';
 
   try {
-    const r = await fetch(`${SERVER}/tickers`);
+    // Fetch ALL MEXC futures tickers directly via server proxy
+    status.textContent = 'Fetching all MEXC futures...';
+    const r = await fetch(`${SERVER}/mexc-scan`);
     const allTickers = await r.json();
     if (!allTickers || !Object.keys(allTickers).length) throw new Error('No data from server');
 
@@ -2530,3 +2528,4 @@ initAuth().then(ok => {
 </script>
 </body>
 </html>
+
