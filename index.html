@@ -875,6 +875,13 @@ function showMexcStatus(msg, color='var(--text3)') {
 // ANALYSIS HISTORY
 // ============================================================
 function saveToHistory(a, token, timeframe) {
+  // Fallback for missing stop/target using ATR estimate
+  const entryPrice = parseFloat(a.entry?.toString().replace(/[^0-9.]/g,'')) || token.price;
+  const atrEst = entryPrice * 0.015; // 1.5% estimate if ATR unavailable
+  const isBuy = a.signal === 'LONG';
+  const stop   = a.stop   || (isBuy ? (entryPrice - atrEst).toFixed(6) : (entryPrice + atrEst).toFixed(6));
+  const target = a.target || (isBuy ? (entryPrice + atrEst*2).toFixed(6) : (entryPrice - atrEst*2).toFixed(6));
+
   const entry = {
     id: Date.now(),
     symbol: token.symbol,
@@ -882,15 +889,15 @@ function saveToHistory(a, token, timeframe) {
     timeframe,
     signal: a.signal,
     confidence: a.confidence,
-    entry: a.entry,
-    target: a.target,
-    stop: a.stop,
+    entry: a.entry || entryPrice,
+    target,
+    stop,
     rr: a.rr_ratio || '1:2',
     bias: a.bias || '',
     reasoning: a.reasoning || '',
     price: token.price,
     timestamp: new Date().toISOString(),
-    status: 'active', // active, expired, dead
+    status: 'active',
   };
   analysisHistory.unshift(entry);
   if (analysisHistory.length > 50) analysisHistory = analysisHistory.slice(0, 50);
@@ -929,13 +936,13 @@ function renderHistory() {
         </div>
         <div style="display:flex;gap:16px;margin-bottom:5px;">
           <div style="font-size:9px;color:var(--text2);">Signal: <b style="color:${h.signal==='LONG'?'var(--accent)':h.signal==='SHORT'?'var(--accent3)':'var(--accent4)'}">${h.signal}</b> (${h.confidence}%)</div>
-          <div style="font-size:9px;color:var(--text2);">Price: <b>$${fmt(h.price)}</b></div>
+          <div style="font-size:9px;color:var(--text2);">Price: <b>${fmt(h.price)}</b></div>
         </div>
         <div style="display:flex;gap:12px;margin-bottom:5px;">
-          <div style="font-size:8px;color:var(--text3);">🎯 ${h.entry}</div>
-          <div style="font-size:8px;color:var(--accent);">✅ ${h.target}</div>
-          <div style="font-size:8px;color:var(--accent3);">🛑 ${h.stop}</div>
-          <div style="font-size:8px;color:var(--text3);">⚖️ ${h.rr}</div>
+          <div style="font-size:8px;color:var(--text3);">🎯 ${h.entry || '—'}</div>
+          <div style="font-size:8px;color:var(--accent);">✅ ${h.target || '—'}</div>
+          <div style="font-size:8px;color:var(--accent3);">🛑 ${h.stop || '—'}</div>
+          <div style="font-size:8px;color:var(--text3);">⚖️ ${h.rr || '1:2'}</div>
         </div>
         ${h.bias ? `<div style="font-size:8px;color:var(--text3);font-style:italic;letter-spacing:1px;">${h.bias}</div>` : ''}
         <div style="font-size:7px;color:var(--text3);margin-top:4px;letter-spacing:1px;">${dateStr}</div>
