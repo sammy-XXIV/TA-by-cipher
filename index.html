@@ -823,8 +823,8 @@ async function fetchMexcTicker() {
     showMexcStatus(`✓ ${ticker} loaded — $${fmt(price)} (${change >= 0 ? '+':''}${change.toFixed(2)}%)`, 'var(--accent)');
     input.value = '';
 
-    // Auto-select and open chart
-    await selectToken(token);
+    // Auto-open chart
+    await goDetail(token.id);
 
     btn.textContent = 'FETCH →'; btn.disabled = false;
 
