@@ -336,6 +336,7 @@
     <div class="detail-tabs">
       <button class="dtab active" onclick="showTab('chart')" id="dtab-chart">📈 CHART</button>
       <button class="dtab" onclick="showTab('ai')" id="dtab-ai">⚡ AI ANALYSIS</button>
+      <button class="dtab" onclick="showTab('history')" id="dtab-history">📋 HISTORY</button>
     </div>
 
     <!-- CHART TAB -->
@@ -408,14 +409,26 @@
         <div class="out-area" id="outArea">
           <div class="empty">
             <div class="empty-icon">◈ ◈ ◈</div>
-            ENTER PASSWORD<br>AND RUN ANALYSIS
+            RUN ANALYSIS TO BEGIN
           </div>
         </div>
       </div>
     </div>
-  </div>
 
-</div>
+    <!-- HISTORY TAB -->
+    <div class="dcontent" id="dc-history">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0;">
+        <div style="font-size:9px;letter-spacing:2px;color:var(--text3);">// ANALYSIS HISTORY</div>
+        <button onclick="clearHistory()" style="background:none;border:1px solid #ff3c6e40;color:var(--accent3);font-family:'Share Tech Mono',monospace;font-size:8px;padding:4px 8px;cursor:pointer;letter-spacing:1px;">✕ CLEAR</button>
+      </div>
+      <div id="historyList" style="overflow-y:auto;flex:1;">
+        <div class="empty" id="historyEmpty">
+          <div class="empty-icon">📋</div>
+          No analysis history yet.<br>Run analysis to start tracking.
+        </div>
+      </div>
+    </div>
+  </div>
 
 <div class="sammy">made by <span>SAMMY</span></div>
 <div class="matrix" id="matrix"></div>
@@ -437,6 +450,7 @@ let searchQuery = '';
 let zoomLevel = 1;
 let currentUser = null;
 let userProfile = null;
+let analysisHistory = JSON.parse(localStorage.getItem('cipherHistory') || '[]');
 
 // ============================================================
 // AUTH — check login on load
@@ -520,9 +534,11 @@ async function refreshChart() {
 
 function showTab(tab) {
   document.querySelectorAll('.dcontent').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.dtab').forEach(t => t.classList.remove('active'));
   document.getElementById('dtab-' + tab).classList.add('active');
   document.getElementById('dc-' + tab).classList.add('active');
-  if (tab === 'chart' && chartData.length) setTimeout(drawChart, 50); // just redraw, don't reload
+  if (tab === 'chart' && chartData.length) setTimeout(drawChart, 50);
+  if (tab === 'history') renderHistory();
 }
 
 function zoomChart(dir) {
@@ -841,6 +857,95 @@ function showMexcStatus(msg, color='var(--text3)') {
   el.style.color = color;
   el.style.display = 'block';
   setTimeout(() => { el.style.display = 'none'; }, 5000);
+}
+
+// ============================================================
+// ANALYSIS HISTORY
+// ============================================================
+function saveToHistory(a, token, timeframe) {
+  const entry = {
+    id: Date.now(),
+    symbol: token.symbol,
+    name: token.name,
+    timeframe,
+    signal: a.signal,
+    confidence: a.confidence,
+    entry: a.entry,
+    target: a.target,
+    stop: a.stop,
+    rr: a.rr_ratio || '1:2',
+    bias: a.bias || '',
+    reasoning: a.reasoning || '',
+    price: token.price,
+    timestamp: new Date().toISOString(),
+    status: 'active', // active, expired, dead
+  };
+  analysisHistory.unshift(entry);
+  if (analysisHistory.length > 50) analysisHistory = analysisHistory.slice(0, 50);
+  localStorage.setItem('cipherHistory', JSON.stringify(analysisHistory));
+  renderHistory();
+}
+
+function renderHistory() {
+  const list = document.getElementById('historyList');
+  const empty = document.getElementById('historyEmpty');
+  if (!list) return;
+
+  if (!analysisHistory.length) {
+    if (empty) empty.style.display = 'block';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+
+  const items = analysisHistory.map(h => {
+    const emoji = h.signal === 'LONG' ? '🟢' : h.signal === 'SHORT' ? '🔴' : '🟡';
+    const statusColor = h.status === 'dead' ? 'var(--accent3)' : h.status === 'expired' ? 'var(--accent4)' : 'var(--accent)';
+    const statusLabel = h.status === 'dead' ? '❌ DEAD' : h.status === 'expired' ? '⏱ EXPIRED' : '✓ ACTIVE';
+    const date = new Date(h.timestamp);
+    const dateStr = date.toLocaleDateString('en-US', {month:'short', day:'numeric'}) + ' ' +
+      date.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'});
+
+    return `
+      <div style="padding:12px 14px;border-bottom:1px solid var(--border);animation:fadeUp 0.3s ease;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:13px;">${emoji}</span>
+            <span style="font-family:'Orbitron',sans-serif;font-size:13px;color:var(--text);font-weight:700;">${h.symbol}</span>
+            <span style="font-size:8px;color:var(--text3);letter-spacing:1px;">${h.timeframe}</span>
+          </div>
+          <span style="font-size:8px;color:${statusColor};letter-spacing:1px;">${statusLabel}</span>
+        </div>
+        <div style="display:flex;gap:16px;margin-bottom:5px;">
+          <div style="font-size:9px;color:var(--text2);">Signal: <b style="color:${h.signal==='LONG'?'var(--accent)':h.signal==='SHORT'?'var(--accent3)':'var(--accent4)'}">${h.signal}</b> (${h.confidence}%)</div>
+          <div style="font-size:9px;color:var(--text2);">Price: <b>$${fmt(h.price)}</b></div>
+        </div>
+        <div style="display:flex;gap:12px;margin-bottom:5px;">
+          <div style="font-size:8px;color:var(--text3);">🎯 ${h.entry}</div>
+          <div style="font-size:8px;color:var(--accent);">✅ ${h.target}</div>
+          <div style="font-size:8px;color:var(--accent3);">🛑 ${h.stop}</div>
+          <div style="font-size:8px;color:var(--text3);">⚖️ ${h.rr}</div>
+        </div>
+        ${h.bias ? `<div style="font-size:8px;color:var(--text3);font-style:italic;letter-spacing:1px;">${h.bias}</div>` : ''}
+        <div style="font-size:7px;color:var(--text3);margin-top:4px;letter-spacing:1px;">${dateStr}</div>
+      </div>
+    `;
+  }).join('');
+
+  list.innerHTML = items;
+}
+
+function clearHistory() {
+  if (!confirm('Clear all analysis history?')) return;
+  analysisHistory = [];
+  localStorage.setItem('cipherHistory', JSON.stringify([]));
+  renderHistory();
+}
+
+function updateHistoryStatus(status) {
+  if (!analysisHistory.length) return;
+  analysisHistory[0].status = status;
+  localStorage.setItem('cipherHistory', JSON.stringify(analysisHistory));
+  renderHistory();
 }
 
 function fmt(p) {
@@ -1633,6 +1738,8 @@ function renderResult(a, isSimulated=false, dataSource='BINANCE') {
   // Store signal for manual timer activation
   activeSignal = a;
   timerActive = false;
+  // Save to history
+  saveToHistory(a, activeToken, activeTimeframe);
   // Auto send analysis to Telegram
   sendToTelegram();
 }
@@ -1761,6 +1868,7 @@ function startSignalTimer(a) {
       }
       clearInterval(signalTimerInterval);
       timerActive = false;
+      updateHistoryStatus(nearEntry ? 'active' : 'expired');
     } else if (pct < 0.2) {
       display.style.color = 'var(--accent3)';
       if (status) { status.textContent = '⚠ Expiring soon — act now or skip'; status.style.color = 'var(--accent3)'; }
@@ -1821,6 +1929,7 @@ function startSetupMonitor(a) {
       if (setupDead) {
         alerted = true;
         clearInterval(setupMonitorInterval);
+        updateHistoryStatus('dead');
         // Update timer display
         const display = document.getElementById('timerDisplay');
         const status = document.getElementById('timerStatus');
