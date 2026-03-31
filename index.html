@@ -299,7 +299,6 @@
     <div class="home-bar">
       <div class="mkt-count">// <b id="mktCount">LOADING...</b></div>
       <button onclick="fetchPrices()" id="refreshPriceBtn" style="background:none;border:1px solid var(--border2);color:var(--accent2);font-family:'Share Tech Mono',monospace;font-size:11px;padding:5px 10px;cursor:pointer;letter-spacing:1px;flex-shrink:0;" title="Refresh prices">↺</button>
-      <button onclick="showHistoryPage()" style="background:none;border:1px solid var(--border2);color:var(--accent);font-family:'Share Tech Mono',monospace;font-size:11px;padding:5px 10px;cursor:pointer;letter-spacing:1px;flex-shrink:0;" title="Analysis History">📋</button>
       <div class="search-box">
         <span>🔍</span>
         <input type="text" id="searchInput" placeholder="SEARCH..." autocomplete="off" oninput="handleSearch(this.value)">
@@ -430,28 +429,6 @@
       </div>
     </div>
   </div>
-
-  <!-- STANDALONE HISTORY PAGE -->
-  <div class="page" id="historyPage">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border2);background:var(--bg2);flex-shrink:0;">
-      <div style="display:flex;align-items:center;gap:10px;">
-        <button onclick="goHome()" style="background:none;border:1px solid var(--border2);color:var(--accent2);font-family:'Share Tech Mono',monospace;font-size:10px;padding:5px 10px;cursor:pointer;letter-spacing:1px;">← BACK</button>
-        <div style="font-family:'Orbitron',sans-serif;font-size:13px;color:var(--accent);letter-spacing:3px;">CIPHER</div>
-      </div>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <div style="font-size:9px;color:var(--text3);letter-spacing:2px;">HISTORY</div>
-        <button onclick="clearHistory(true)" style="background:none;border:1px solid #ff3c6e40;color:var(--accent3);font-family:'Share Tech Mono',monospace;font-size:8px;padding:4px 8px;cursor:pointer;letter-spacing:1px;">✕ CLEAR ALL</button>
-      </div>
-    </div>
-    <div id="historyPageList" style="overflow-y:auto;flex:1;">
-      <div class="empty" id="historyPageEmpty">
-        <div class="empty-icon">📋</div>
-        No analysis history yet.<br>Run analysis to start tracking.
-      </div>
-    </div>
-  </div>
-
-</div>
 
 <div class="sammy">made by <span>SAMMY</span></div>
 <div class="matrix" id="matrix"></div>
@@ -928,25 +905,18 @@ function saveToHistory(a, token, timeframe) {
   renderHistory();
 }
 
-function showHistoryPage() {
-  document.querySelectorAll('.page').forEach(p => p.className = 'page');
-  document.getElementById('historyPage').className = 'page visible';
-  renderHistory();
-}
-
-function renderHistoryInContainer(listId, emptyId) {
-  const list = document.getElementById(listId);
-  const empty = document.getElementById(emptyId);
+function renderHistory() {
+  const list = document.getElementById('historyList');
+  const empty = document.getElementById('historyEmpty');
   if (!list) return;
 
   if (!analysisHistory.length) {
-    list.innerHTML = '';
     if (empty) empty.style.display = 'block';
     return;
   }
   if (empty) empty.style.display = 'none';
 
-  list.innerHTML = analysisHistory.map(h => {
+  const items = analysisHistory.map(h => {
     const emoji = h.signal === 'LONG' ? '🟢' : h.signal === 'SHORT' ? '🔴' : '🟡';
     const statusColor = h.status === 'dead' ? 'var(--accent3)' : h.status === 'expired' ? 'var(--accent4)' : 'var(--accent)';
     const statusLabel = h.status === 'dead' ? '❌ DEAD' : h.status === 'expired' ? '⏱ EXPIRED' : '✓ ACTIVE';
@@ -955,17 +925,14 @@ function renderHistoryInContainer(listId, emptyId) {
       date.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'});
 
     return `
-      <div id="${listId}-item-${h.id}" style="padding:12px 14px;border-bottom:1px solid var(--border);animation:fadeUp 0.3s ease;">
+      <div style="padding:12px 14px;border-bottom:1px solid var(--border);animation:fadeUp 0.3s ease;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
           <div style="display:flex;align-items:center;gap:8px;">
             <span style="font-size:13px;">${emoji}</span>
             <span style="font-family:'Orbitron',sans-serif;font-size:13px;color:var(--text);font-weight:700;">${h.symbol}</span>
             <span style="font-size:8px;color:var(--text3);letter-spacing:1px;">${h.timeframe}</span>
           </div>
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span style="font-size:8px;color:${statusColor};letter-spacing:1px;">${statusLabel}</span>
-            <button onclick="deleteHistoryItem(${h.id})" style="background:none;border:1px solid #ff3c6e30;color:#ff3c6e80;font-size:9px;padding:2px 6px;cursor:pointer;font-family:'Share Tech Mono',monospace;">✕</button>
-          </div>
+          <span style="font-size:8px;color:${statusColor};letter-spacing:1px;">${statusLabel}</span>
         </div>
         <div style="display:flex;gap:16px;margin-bottom:5px;">
           <div style="font-size:9px;color:var(--text2);">Signal: <b style="color:${h.signal==='LONG'?'var(--accent)':h.signal==='SHORT'?'var(--accent3)':'var(--accent4)'}">${h.signal}</b> (${h.confidence}%)</div>
@@ -982,27 +949,11 @@ function renderHistoryInContainer(listId, emptyId) {
       </div>
     `;
   }).join('');
+
+  list.innerHTML = items;
 }
 
-function renderHistory() {
-  renderHistoryInContainer('historyList', 'historyEmpty');
-  renderHistoryInContainer('historyPageList', 'historyPageEmpty');
-}
-
-function deleteHistoryItem(id) {
-  analysisHistory = analysisHistory.filter(h => h.id !== id);
-  localStorage.setItem('cipherHistory', JSON.stringify(analysisHistory));
-  // Remove from both containers
-  document.querySelectorAll(`[id$="-item-${id}"]`).forEach(el => el.remove());
-  if (!analysisHistory.length) {
-    ['historyEmpty', 'historyPageEmpty'].forEach(eid => {
-      const el = document.getElementById(eid);
-      if (el) el.style.display = 'block';
-    });
-  }
-}
-
-function clearHistory(fromPage = false) {
+function clearHistory() {
   if (!confirm('Clear all analysis history?')) return;
   analysisHistory = [];
   localStorage.setItem('cipherHistory', JSON.stringify([]));
