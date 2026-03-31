@@ -289,6 +289,7 @@
     <div class="dot-pill"><div class="dot green"></div>LIVE</div>
     <div class="dot-pill"><div class="dot blue"></div>AI</div>
     <button onclick="window.location.href='cipher_settings.html'" style="background:none;border:1px solid var(--border2);color:var(--text2);font-family:'Share Tech Mono',monospace;font-size:10px;padding:4px 8px;cursor:pointer;letter-spacing:1px;">⚙</button>
+    <button onclick="openHistory()" style="background:none;border:1px solid var(--border2);color:var(--accent);font-family:'Share Tech Mono',monospace;font-size:10px;padding:4px 8px;cursor:pointer;letter-spacing:1px;" title="Analysis History">📋</button>
   </div>
 </header>
 
@@ -429,6 +430,8 @@
       </div>
     </div>
   </div>
+
+</div>
 
 <div class="sammy">made by <span>SAMMY</span></div>
 <div class="matrix" id="matrix"></div>
@@ -905,18 +908,34 @@ function saveToHistory(a, token, timeframe) {
   renderHistory();
 }
 
-function renderHistory() {
-  const list = document.getElementById('historyList');
-  const empty = document.getElementById('historyEmpty');
+function showHistoryPage() {}
+
+function openHistory() {
+  // If on detail page — just switch to history tab
+  const detailPage = document.getElementById('detailPage');
+  if (detailPage && detailPage.className.includes('visible')) {
+    showTab('history');
+    return;
+  }
+  // If on home page — go to first token's detail and show history tab
+  if (TOKENS.length) {
+    goDetail(TOKENS[0].id).then(() => showTab('history'));
+  }
+}
+
+function renderHistoryInContainer(listId, emptyId) {
+  const list = document.getElementById(listId);
+  const empty = document.getElementById(emptyId);
   if (!list) return;
 
   if (!analysisHistory.length) {
+    list.innerHTML = '';
     if (empty) empty.style.display = 'block';
     return;
   }
   if (empty) empty.style.display = 'none';
 
-  const items = analysisHistory.map(h => {
+  list.innerHTML = analysisHistory.map(h => {
     const emoji = h.signal === 'LONG' ? '🟢' : h.signal === 'SHORT' ? '🔴' : '🟡';
     const statusColor = h.status === 'dead' ? 'var(--accent3)' : h.status === 'expired' ? 'var(--accent4)' : 'var(--accent)';
     const statusLabel = h.status === 'dead' ? '❌ DEAD' : h.status === 'expired' ? '⏱ EXPIRED' : '✓ ACTIVE';
@@ -925,14 +944,17 @@ function renderHistory() {
       date.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'});
 
     return `
-      <div style="padding:12px 14px;border-bottom:1px solid var(--border);animation:fadeUp 0.3s ease;">
+      <div id="${listId}-item-${h.id}" style="padding:12px 14px;border-bottom:1px solid var(--border);animation:fadeUp 0.3s ease;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
           <div style="display:flex;align-items:center;gap:8px;">
             <span style="font-size:13px;">${emoji}</span>
             <span style="font-family:'Orbitron',sans-serif;font-size:13px;color:var(--text);font-weight:700;">${h.symbol}</span>
             <span style="font-size:8px;color:var(--text3);letter-spacing:1px;">${h.timeframe}</span>
           </div>
-          <span style="font-size:8px;color:${statusColor};letter-spacing:1px;">${statusLabel}</span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:8px;color:${statusColor};letter-spacing:1px;">${statusLabel}</span>
+            <button onclick="deleteHistoryItem(${h.id})" style="background:none;border:1px solid #ff3c6e30;color:#ff3c6e80;font-size:9px;padding:2px 6px;cursor:pointer;font-family:'Share Tech Mono',monospace;">✕</button>
+          </div>
         </div>
         <div style="display:flex;gap:16px;margin-bottom:5px;">
           <div style="font-size:9px;color:var(--text2);">Signal: <b style="color:${h.signal==='LONG'?'var(--accent)':h.signal==='SHORT'?'var(--accent3)':'var(--accent4)'}">${h.signal}</b> (${h.confidence}%)</div>
@@ -949,11 +971,23 @@ function renderHistory() {
       </div>
     `;
   }).join('');
-
-  list.innerHTML = items;
 }
 
-function clearHistory() {
+function renderHistory() {
+  renderHistoryInContainer('historyList', 'historyEmpty');
+}
+
+function deleteHistoryItem(id) {
+  analysisHistory = analysisHistory.filter(h => h.id !== id);
+  localStorage.setItem('cipherHistory', JSON.stringify(analysisHistory));
+  document.querySelectorAll(`[id$="-item-${id}"]`).forEach(el => el.remove());
+  if (!analysisHistory.length) {
+    const empty = document.getElementById('historyEmpty');
+    if (empty) empty.style.display = 'block';
+  }
+}
+
+function clearHistory(fromPage = false) {
   if (!confirm('Clear all analysis history?')) return;
   analysisHistory = [];
   localStorage.setItem('cipherHistory', JSON.stringify([]));
