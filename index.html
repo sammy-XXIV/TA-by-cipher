@@ -587,25 +587,35 @@ function handleChartTap(e) {
 async function fetchPrices() {
   const btn = document.getElementById('refreshPriceBtn');
   if (btn) { btn.textContent='⟳'; btn.style.opacity='0.5'; btn.disabled=true; }
+  // Show waking up message after 3 seconds
+  const wakeTimer = setTimeout(() => {
+    document.getElementById('mktCount').textContent = 'WAKING SERVER...';
+  }, 3000);
   try {
     document.getElementById('mktCount').textContent = 'LOADING...';
 
     // Run ALL fetches simultaneously — server proxy first for prices
+    const fetchWithTimeout = (url, opts={}, ms=8000) => {
+      const ctrl = new AbortController();
+      const timer = setTimeout(()=>ctrl.abort(), ms);
+      return fetch(url, {...opts, signal:ctrl.signal}).finally(()=>clearTimeout(timer));
+    };
+
     const [cgRes, tickerRes, binanceRes, bybitRes, okxRes, hlRes, mexcRes] = await Promise.allSettled([
       // CoinGecko — metadata
-      fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&price_change_percentage=24h').then(r=>r.json()),
+      fetchWithTimeout('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&price_change_percentage=24h').then(r=>r.json()),
       // Server ticker proxy (no CORS)
-      fetch(`${SERVER}/tickers`).then(r=>r.json()),
+      fetchWithTimeout(`${SERVER}/tickers`, {}, 6000).then(r=>r.json()),
       // Binance direct
-      fetch('https://api.binance.com/api/v3/ticker/24hr').then(r=>r.json()),
+      fetchWithTimeout('https://api.binance.com/api/v3/ticker/24hr').then(r=>r.json()),
       // Bybit direct
-      fetch('https://api.bybit.com/v5/market/tickers?category=spot').then(r=>r.json()),
+      fetchWithTimeout('https://api.bybit.com/v5/market/tickers?category=spot').then(r=>r.json()),
       // OKX direct
-      fetch('https://www.okx.com/api/v5/market/tickers?instType=SPOT').then(r=>r.json()),
+      fetchWithTimeout('https://www.okx.com/api/v5/market/tickers?instType=SPOT').then(r=>r.json()),
       // Hyperliquid direct
-      fetch('https://api.hyperliquid.xyz/info', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'spotMetaAndAssetCtxs'})}).then(r=>r.json()),
+      fetchWithTimeout('https://api.hyperliquid.xyz/info', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'spotMetaAndAssetCtxs'})}).then(r=>r.json()),
       // MEXC direct
-      fetch('https://www.mexc.com/open/api/v2/market/ticker').then(r=>r.json()),
+      fetchWithTimeout('https://www.mexc.com/open/api/v2/market/ticker').then(r=>r.json()),
     ]);
 
     // Parse CoinGecko
@@ -730,6 +740,7 @@ async function fetchPrices() {
     const sourceSummary = hasServer ? 'SERVER PROXY' : activeSources.length >= 2 ? `${activeSources.length}-EXCHANGE AVG` : activeSources.join('+') || 'COINGECKO';
 
     document.getElementById('mktCount').textContent = `${TOKENS.length} MARKETS · ${sourceSummary}`;
+    clearTimeout(wakeTimer);
     if (btn) { btn.textContent='↺'; btn.style.opacity='1'; btn.disabled=false; }
     if (activeToken) {
       const updated = TOKENS.find(t => t.id === activeToken.id);
@@ -737,6 +748,7 @@ async function fetchPrices() {
     }
     renderList();
   } catch(e) {
+    clearTimeout(wakeTimer);
     if (btn) { btn.textContent='↺'; btn.style.opacity='1'; btn.disabled=false; }
     document.getElementById('mktCount').textContent = 'ERROR';
     document.getElementById('tokenList').innerHTML = `
@@ -1689,11 +1701,50 @@ function renderResult(a, isSimulated=false, dataSource='BINANCE') {
         <div class="out-txt" style="color:var(--accent2)">${a.alternative}</div>
       </div>` : ''}
       <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:var(--border)">
-        ${[['ENTRY',a.entry],['TAKE PROFIT',a.target],['STOP LOSS',a.stop]].map(([l,v])=>`
+        ${(()=>{
+          const entryP = parseFloat(a.entry?.toString().replace(/[^0-9.]/g,''));
+          const currP = activeToken?.price || 0;
+          const isBuy = a.signal === 'LONG';
+          let entryLabel = 'ENTRY';
+          let entryColor = 'var(--text3)';
+          let entryTag = '';
+          if (entryP && currP) {
+            const diff = Math.abs(currP - entryP) / entryP;
+            if (diff <= 0.005) {
+              entryTag = '● CMP';
+              entryColor = 'var(--accent)';
+            } else if (isBuy && currP > entryP) {
+              entryTag = '⏳ LIMIT — wait for pullback';
+              entryColor = 'var(--accent4)';
+            } else if (!isBuy && currP < entryP) {
+              entryTag = '⏳ LIMIT — wait for bounce';
+              entryColor = 'var(--accent4)';
+            } else if (isBuy && currP < entryP * 0.98) {
+              entryTag = '❌ MISSED — wait for next setup';
+              entryColor = 'var(--accent3)';
+            } else if (!isBuy && currP > entryP * 1.02) {
+              entryTag = '❌ MISSED — wait for next setup';
+              entryColor = 'var(--accent3)';
+            } else {
+              entryTag = '🎯 NEAR ENTRY';
+              entryColor = 'var(--accent2)';
+            }
+          }
+          return `
+          <div style="background:var(--bg3);padding:8px 6px;grid-column:span 3;">
+            <div style="font-size:7px;letter-spacing:1px;margin-bottom:3px;color:${entryColor}">${entryTag || 'ENTRY'}</div>
+            <div style="font-size:13px;color:var(--text);font-family:'Rajdhani',sans-serif;font-weight:700">${a.entry}</div>
+          </div>
           <div style="background:var(--bg3);padding:8px 6px">
-            <div style="font-size:7px;color:var(--text3);letter-spacing:1px;margin-bottom:3px">${l}</div>
-            <div style="font-size:10px;color:var(--text);font-family:'Rajdhani',sans-serif;font-weight:600">${v}</div>
-          </div>`).join('')}
+            <div style="font-size:7px;color:var(--accent);letter-spacing:1px;margin-bottom:3px">TAKE PROFIT</div>
+            <div style="font-size:10px;color:var(--accent);font-family:'Rajdhani',sans-serif;font-weight:600">${a.target}</div>
+          </div>
+          <div style="background:var(--bg3);padding:8px 6px">
+            <div style="font-size:7px;color:var(--accent3);letter-spacing:1px;margin-bottom:3px">STOP LOSS</div>
+            <div style="font-size:10px;color:var(--accent3);font-family:'Rajdhani',sans-serif;font-weight:600">${a.stop}</div>
+          </div>
+          `;
+        })()}
       </div>
       <div style="margin-top:1px;display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border)">
         <div style="background:var(--bg3);padding:8px 6px">
@@ -2271,4 +2322,3 @@ initAuth().then(ok => {
 </script>
 </body>
 </html>
-
