@@ -1721,17 +1721,46 @@ function startSignalTimer(a) {
     display.textContent = getTimerLabel();
 
     if (remaining === 0) {
-      display.style.color = 'var(--accent3)';
-      display.textContent = 'EXPIRED';
-      if (status) { status.textContent = '⚠ Signal expired — re-run analysis'; status.style.color = 'var(--accent3)'; }
+      // Check if price is still near entry zone
+      const entryPrice = parseFloat(a.entry?.toString().replace(/[^0-9.]/g,''));
+      const currentPrice = activeToken?.price;
+      const atr = parseFloat(a.stop) ? Math.abs(parseFloat(a.entry) - parseFloat(a.stop)) / 1.5 : 0;
+      const nearEntry = entryPrice && currentPrice && atr
+        ? Math.abs(currentPrice - entryPrice) < atr * 1.5
+        : false;
+
+      if (nearEntry) {
+        // Timer elapsed but price still near entry — still valid!
+        display.style.color = 'var(--accent4)';
+        display.textContent = 'ELAPSED';
+        if (status) {
+          status.textContent = '⚠ Timer elapsed but setup still valid — re-run analysis to confirm';
+          status.style.color = 'var(--accent4)';
+        }
+        sendTelegramMessage(
+          `⏱ <b>TIMER ELAPSED — ${activeToken?.symbol}</b>\n\n` +
+          `Your ${activeTimeframe} ${a.signal} timer ran out BUT price is still near entry.\n\n` +
+          `Current: <b>$${currentPrice}</b> | Entry: <b>${a.entry}</b>\n\n` +
+          `⚠ Setup may still be valid — re-run analysis to confirm before entering.`,
+          'expired'
+        );
+      } else {
+        // Timer elapsed and price moved away — invalidated
+        display.style.color = 'var(--accent3)';
+        display.textContent = 'EXPIRED';
+        if (status) {
+          status.textContent = '❌ Signal expired — price moved away from entry';
+          status.style.color = 'var(--accent3)';
+        }
+        sendTelegramMessage(
+          `❌ <b>SIGNAL EXPIRED — ${activeToken?.symbol}</b>\n\n` +
+          `Your ${activeTimeframe} ${a.signal} signal has expired and price moved away from entry.\n\n` +
+          `Do not enter this trade. Re-run analysis for a fresh signal.`,
+          'expired'
+        );
+      }
       clearInterval(signalTimerInterval);
       timerActive = false;
-      sendTelegramMessage(
-        `⏱ <b>SIGNAL EXPIRED — ${activeToken?.symbol}</b>\n\n` +
-        `Your ${activeTimeframe} ${a.signal} signal has expired.\n` +
-        `Re-run analysis before entering any trade.\n\n` +
-        `Last signal: <b>${a.signal}</b> at ${a.entry}`
-      );
     } else if (pct < 0.2) {
       display.style.color = 'var(--accent3)';
       if (status) { status.textContent = '⚠ Expiring soon — act now or skip'; status.style.color = 'var(--accent3)'; }
