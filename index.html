@@ -432,7 +432,7 @@
   </div>
 
   <!-- SCANNER PAGE -->
-  <div class="page" id="scannerPage">
+  <div class="page hidden-right" id="scannerPage">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border2);background:var(--bg2);flex-shrink:0;">
       <div style="display:flex;align-items:center;gap:10px;">
         <button onclick="goHome()" style="background:none;border:1px solid var(--border2);color:var(--accent2);font-family:'Share Tech Mono',monospace;font-size:10px;padding:5px 10px;cursor:pointer;letter-spacing:1px;">← BACK</button>
@@ -517,6 +517,7 @@ async function sendPersonalNotification(text, type='general') {
 function goHome() {
   document.getElementById('homePage').className = 'page visible';
   document.getElementById('detailPage').className = 'page hidden-right';
+  document.getElementById('scannerPage').className = 'page hidden-right';
   document.getElementById('backBtn').classList.remove('show');
 }
 
@@ -942,7 +943,8 @@ function showHistoryPage() {}
 let scanData = [];
 
 function showScannerPage() {
-  document.querySelectorAll('.page').forEach(p => p.className = 'page');
+  document.getElementById('homePage').className = 'page hidden-left';
+  document.getElementById('detailPage').className = 'page hidden-right';
   document.getElementById('scannerPage').className = 'page visible';
 }
 
@@ -2528,4 +2530,3 @@ initAuth().then(ok => {
 </script>
 </body>
 </html>
-
