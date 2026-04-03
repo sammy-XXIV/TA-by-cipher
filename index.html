@@ -1011,19 +1011,19 @@ async function runMexcScan() {
     const volumeSpikes = [...tokens]
       .filter(t => t.rangePercent > 8)
       .sort((a,b) => b.rangePercent - a.rangePercent)
-      .slice(0, 5);
+      .slice(0, 10);
 
     // ── METHOD 2: Momentum — biggest movers up
     const topGainers = [...tokens]
       .filter(t => t.change > 3)
       .sort((a,b) => b.change - a.change)
-      .slice(0, 5);
+      .slice(0, 10);
 
     // ── METHOD 3: Potential reversals — biggest losers (oversold bounce)
     const potentialReversals = [...tokens]
       .filter(t => t.change < -8)
       .sort((a,b) => a.change - b.change)
-      .slice(0, 5);
+      .slice(0, 10);
 
     // ── METHOD 4: BTC Laggards — tokens that haven't moved yet
     // BTC's 24H change as benchmark
@@ -1031,7 +1031,7 @@ async function runMexcScan() {
     const btcLaggards = [...tokens]
       .filter(t => btcChange > 2 && t.change < btcChange * 0.3 && t.change > -2)
       .sort((a,b) => a.change - b.change)
-      .slice(0, 5);
+      .slice(0, 10);
 
     // ── METHOD 5: Sector leaders — top performer per sector
     const sectorLeaders = [];
@@ -1045,13 +1045,13 @@ async function runMexcScan() {
     const breakouts = [...tokens]
       .filter(t => t.high > 0 && (t.price / t.high) > 0.92 && t.change > 2)
       .sort((a,b) => (b.price/b.high) - (a.price/a.high))
-      .slice(0, 5);
+      .slice(0, 10);
 
     // ── METHOD 7: Near 24H Low (bounce candidates)
     const bounceCandidates = [...tokens]
       .filter(t => t.low > 0 && (t.price / t.low) < 1.05 && t.change < -5)
       .sort((a,b) => (a.price/a.low) - (b.price/b.low))
-      .slice(0, 5);
+      .slice(0, 10);
 
     scanData = tokens;
     status.textContent = `Scan complete — ${tokens.length} tokens analysed`;
