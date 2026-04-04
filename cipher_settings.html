@@ -257,6 +257,20 @@
           </div>
           <div class="toggle" id="pref-feargreed" onclick="togglePref('feargreed')"></div>
         </div>
+        <div class="pref-item">
+          <div>
+            <div class="pref-label">📰 News Alerts</div>
+            <div class="pref-desc">Breaking crypto news affecting tokens</div>
+          </div>
+          <div class="toggle on" id="pref-news" onclick="togglePref('news')"></div>
+        </div>
+        <div class="pref-item">
+          <div>
+            <div class="pref-label">⚠ Pre-Pump Alerts</div>
+            <div class="pref-desc">Tokens showing unusual accumulation patterns</div>
+          </div>
+          <div class="toggle on" id="pref-pumpalert" onclick="togglePref('pumpalert')"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -273,7 +287,7 @@ const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let currentUser = null;
 let userProfile = null;
-let prefs = { analysis:true, entry:true, dead:true, expired:true, feargreed:false };
+let prefs = { analysis:true, entry:true, dead:true, expired:true, feargreed:false, news:true, pumpalert:true };
 
 function goBack() { window.location.href = 'index.html'; }
 
@@ -416,4 +430,3 @@ init();
 </script>
 </body>
 </html>
-
