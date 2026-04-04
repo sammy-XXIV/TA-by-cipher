@@ -1333,6 +1333,9 @@ async function generateChartData() {
           if (data.candles && data.candles.length) {
             raw = data.candles.map(c => [null, c.o, c.h, c.l, c.c, c.v]);
             dataFrom = data.source;
+            if (data.warning) {
+              showChartStatus(`⚠ ${data.warning} — treat analysis with caution`, 'var(--accent4)');
+            }
             break;
           }
         }
@@ -1612,6 +1615,7 @@ async function runAnalysis() {
   // Fetch FRESH candles via server proxy for analysis
   let analysisChartData = chartData;
   let usingSimulated = false;
+  let lowCandleWarning = '';
   let dataSource = 'SERVER PROXY';
   try {
     const intervalMap = {'15M':'15m','1H':'1h','4H':'4h','1D':'1d','1W':'1w'};
@@ -1628,6 +1632,8 @@ async function runAnalysis() {
         if (d.candles && d.candles.length) {
           freshRaw = d.candles.map(c => [null, c.o, c.h, c.l, c.c, c.v]);
           dataSource = `${d.source} (FRESH via server)`;
+          if (d.warning) lowCandleWarning = d.warning;
+          if (d.candles.length < 50) lowCandleWarning = `Only ${d.candles.length} candles — indicators may be inaccurate`;
         }
       }
     } catch(e) {}
@@ -1733,6 +1739,7 @@ async function runAnalysis() {
 
   const prompt=`You are CIPHER, elite AI crypto technical analyst. Analyze ${activeToken.symbol} using the provided data and give sharp actionable predictions.
 ${usingSimulated ? '\nWARNING: Chart data unavailable. Analysis based on SIMULATED data — lower confidence recommended.\n' : ''}
+${lowCandleWarning ? `\nWARNING: ${lowCandleWarning} — keep confidence below 70% and widen SL.\n` : ''}
 TOKEN: ${activeToken.symbol} (${activeToken.name})
 TIMEFRAME: ${activeTimeframe}
 CURRENT PRICE: ${fmt(cp)}
@@ -1762,6 +1769,17 @@ VOLATILITY:
 VOLUME:
 - Strength: ${volumeStrength}
 
+${(() => {
+  const rangePct = ((activeToken.high - activeToken.low) / activeToken.low * 100);
+  const atrPct   = (atr / cp * 100);
+  const warnings = [];
+  if (rangePct > 100) warnings.push(`EXTREME PUMP DETECTED: 24H range is ${rangePct.toFixed(0)}% — likely a crime pump or manipulation. DO NOT SHORT. Signal NEUTRAL unless clear setup exists.`);
+  else if (rangePct > 50) warnings.push(`HIGH VOLATILITY: 24H range ${rangePct.toFixed(0)}% — reduce confidence and position size.`);
+  if (atrPct > 10) warnings.push(`ATR is ${atrPct.toFixed(1)}% of price — extremely volatile, SL must be tight, position size max 2%.`);
+  if (activeToken.change > 50) warnings.push(`Price up ${activeToken.change.toFixed(0)}% today — do NOT short the top without confirmation of reversal.`);
+  return warnings.length ? `WARNINGS:\n${warnings.map(w => `- ${w}`).join('\n')}` : '';
+})()}
+
 KEY LEVELS:
 - Support: ${fmt(sup)} | Resistance: ${fmt(res)}
 - Swing High: ${fmt(swingHigh)} | Swing Low: ${fmt(swingLow)}
@@ -1771,11 +1789,18 @@ Based on the above data, provide a comprehensive analysis.
 - Set TAKE PROFIT at 3x ATR from entry (1:2 minimum R/R)
 - Only give HIGH confidence (80%+) when trend, momentum AND volume all agree
 - Give NEUTRAL if ADX < 20 (no clear trend)
-- For ENTRY: Do NOT use current price as entry. Use the nearest key level:
-  * LONG entry = nearest support, recent swing low, or EMA bounce zone (slightly below current price)
-  * SHORT entry = nearest resistance, recent swing high, or EMA rejection zone (slightly above current price)
-  * If price is already AT a key level = CMP entry is fine
-  * Entry should give a better risk/reward than just buying/selling at market
+
+ENTRY RULES — CRITICAL:
+- LONG entry = nearest support, EMA bounce zone, or recent swing LOW — slightly BELOW current price so you get filled
+- SHORT entry = nearest support breakdown level or EMA rejection — slightly BELOW current price (not above — price rarely pulls back up on shorts)
+- NEVER set entry far above current price for a SHORT — it won't fill and the move will be missed
+- If RSI > 80 and price is above Bollinger Upper Band — this is likely a pump. Do NOT short a pump. Set signal to NEUTRAL with caution.
+- If 24H range > 100% — EXTREME VOLATILITY. Reduce confidence by 20%. Warn in caution field.
+- If volume is HIGH and price made a massive move already — the best trade is often to WAIT for the pullback, not chase
+
+STOP LOSS RULES:
+- SL must be realistic — never more than 15% from entry for altcoins
+- If ATR is > 10% of price, the token is too volatile — flag as HIGH risk and reduce position size to 1-3%
 
 Respond ONLY with JSON (no markdown):
 {"signal":"LONG or SHORT or NEUTRAL","confidence":55-95,"accuracy":55-92,"bias":"punchy uppercase one-liner","reasoning":"3-4 sentences covering trend, momentum, volume, and key levels","caution":"1-2 sentences on specific caution flags","confirmation":"what needs to happen to confirm the signal","alternative":"what to do if signal fails","entry":"best entry price at key support/resistance level — NOT just current price","target":"take profit price (3x ATR from entry)","stop":"stop loss price (1.5x ATR from entry)","rr_ratio":"risk reward ratio e.g. 1:2","roi":"expected ROI % if TP is hit e.g. +4.2%","position_size":"recommended % of capital","risk":"LOW or MEDIUM or HIGH","risk_reason":"one sentence explaining risk","sentiment_impact":"one sentence on Fear & Greed and funding rate impact"}`;
@@ -2591,4 +2616,3 @@ initAuth().then(ok => {
 </script>
 </body>
 </html>
-
