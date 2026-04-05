@@ -885,28 +885,28 @@ function handleSearch(v) { searchQuery = v; renderList(); }
 // ============================================================
 async function fetchMexcTicker() {
   const input = document.getElementById('mexcTickerInput');
-  const btn = document.getElementById('mexcFetchBtn');
-  const status = document.getElementById('mexcFetchStatus');
+  const btn   = document.getElementById('mexcFetchBtn');
 
   let ticker = input.value.trim().toUpperCase().replace('$','').replace('USDT','').replace('_USDT','');
   if (!ticker) { showMexcStatus('Enter a ticker symbol', 'var(--accent3)'); return; }
 
   btn.textContent = '...'; btn.disabled = true;
-  showMexcStatus(`⏳ Fetching ${ticker} from MEXC...`, 'var(--text2)');
+  showMexcStatus(`Fetching ${ticker}...`, 'var(--text2)');
 
   try {
-    // Fetch via server proxy (avoids CORS)
-    const [tickerRes, candleRes] = await Promise.allSettled([
-      fetch(`${SERVER}/ticker?symbol=${ticker}`).then(r=>r.json()),
-      fetch(`${SERVER}/candles?symbol=${ticker}&interval=1h&limit=80`).then(r=>r.json()),
-    ]);
+    const timeout = (ms) => new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms));
 
-    // Get price data from server
+    // Fetch ticker only first — fast, 6s timeout
     let price = 0, change = 0, high = 0, low = 0, src = '';
-    if (tickerRes.status === 'fulfilled' && !tickerRes.value.error) {
-      const d = tickerRes.value;
-      price = d.price; change = d.change; high = d.high; low = d.low; src = d.source;
-    }
+    try {
+      const d = await Promise.race([
+        fetch(`${SERVER}/ticker?symbol=${ticker}`).then(r => r.json()),
+        timeout(6000)
+      ]);
+      if (d && d.price > 0) {
+        price = d.price; change = d.change; high = d.high; low = d.low; src = d.source;
+      }
+    } catch(e) {}
 
     // Fallback — check scan data
     if (!price) {
@@ -918,34 +918,26 @@ async function fetchMexcTicker() {
     }
 
     if (!price) {
-      showMexcStatus(`❌ ${ticker} not found — check the ticker symbol`, 'var(--accent3)');
+      showMexcStatus(`❌ ${ticker} not found`, 'var(--accent3)');
       btn.textContent = 'FETCH'; btn.disabled = false;
       return;
     }
 
-    // Build a token object and select it
+    // Build token and open immediately — don't wait for candles
     const token = {
-      id: ticker.toLowerCase(),
-      symbol: ticker,
-      name: ticker,
-      price, change, high, low,
-      rank: 999,
-      priceSource: src || 'SERVER',
+      id: ticker.toLowerCase(), symbol: ticker, name: ticker,
+      price, change, high, low, rank: 999, priceSource: src || 'MEXC',
     };
-
-    // Add to tokens list if not already there
     const exists = TOKENS.findIndex(t => t.symbol === ticker);
-    if (exists >= 0) TOKENS[exists] = token;
-    else TOKENS.unshift(token);
+    if (exists >= 0) TOKENS[exists] = token; else TOKENS.unshift(token);
 
     renderList();
-    showMexcStatus(`✓ ${ticker} loaded — $${fmt(price)} (${change >= 0 ? '+':''}${change.toFixed(2)}%)`, 'var(--accent)');
+    showMexcStatus(`✓ ${ticker} — ${fmt(price)} (${change >= 0?'+':''}${change.toFixed(2)}%)`, 'var(--accent)');
     input.value = '';
-
-    // Auto-open chart
-    await goDetail(token.id);
-
     btn.textContent = 'FETCH'; btn.disabled = false;
+
+    // Open chart — candles load inside goDetail
+    await goDetail(token.id);
 
   } catch(e) {
     showMexcStatus(`❌ Error: ${e.message}`, 'var(--accent3)');
