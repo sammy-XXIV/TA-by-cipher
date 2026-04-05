@@ -633,7 +633,7 @@ async function fetchPrices() {
       // CoinGecko — metadata
       fetchWithTimeout('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&price_change_percentage=24h').then(r=>r.json()),
       // Server ticker proxy (no CORS)
-      fetchWithTimeout(`${SERVER}/tickers`, {}, 6000).then(r=>r.json()),
+      fetchWithTimeout(`${SERVER}/tickers`, {}, 12000).then(r=>r.json()),
       // Binance direct
       fetchWithTimeout('https://api.binance.com/api/v3/ticker/24hr').then(r=>r.json()),
       // Bybit direct
@@ -953,6 +953,8 @@ function showScannerPage() {
   document.getElementById('homePage').className = 'page hidden-left';
   document.getElementById('detailPage').className = 'page hidden-right';
   document.getElementById('scannerPage').className = 'page visible';
+  document.getElementById('backBtn').classList.add('show');
+  document.getElementById('backBtn').onclick = goHome;
   const btn = document.getElementById('scanNavBtn');
   if (btn) { btn.textContent = 'CLOSE'; btn.onclick = goHome; }
 }
