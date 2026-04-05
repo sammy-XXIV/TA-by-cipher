@@ -290,7 +290,7 @@
     <div class="dot-pill"><div class="dot green"></div>LIVE</div>
     <div class="dot-pill"><div class="dot blue"></div>AI</div>
     <button onclick="showScannerPage()" id="scanNavBtn" style="background:none;border:1px solid var(--border2);color:var(--text2);font-family:'DM Sans',sans-serif;font-size:10px;font-weight:600;padding:4px 10px;cursor:pointer;letter-spacing:1px;text-transform:uppercase;transition:all 0.2s;" onmouseover="this.style.color='var(--accent)';this.style.borderColor='var(--accent)'" onmouseout="this.style.color='var(--text2)';this.style.borderColor='var(--border2)'">SCAN</button>
-    <button onclick="window.location.href='cipher_settings.html'" style="background:none;border:1px solid var(--border2);color:var(--text2);font-family:'DM Sans',sans-serif;font-size:10px;font-weight:600;padding:4px 10px;cursor:pointer;letter-spacing:1px;text-transform:uppercase;transition:all 0.2s;" onmouseover="this.style.color='var(--accent2)';this.style.borderColor='var(--accent2)'" onmouseout="this.style.color='var(--text2)';this.style.borderColor='var(--border2)'">SETTINGS</button>
+    <button onclick="window.location.href='cipher_settings.html'" style="background:none;border:1px solid var(--border2);color:var(--text2);font-size:14px;width:30px;height:30px;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;" onmouseover="this.style.color='var(--accent2)';this.style.borderColor='var(--accent2)'" onmouseout="this.style.color='var(--text2)';this.style.borderColor='var(--border2)'" title="Settings">⚙</button>
   </div>
 </header>
 
@@ -410,7 +410,7 @@
           <div class="stat-c"><div class="stat-l">RESISTANCE</div><div class="stat-v" id="sRes">—</div></div>
         </div>
         <button class="run-btn" id="runBtn" onclick="runAnalysis()">RUN ANALYSIS</button>
-        <button class="run-btn" id="scalp-btn" onclick="runScalpMode()" style="margin-top:0;border-color:var(--accent4);color:var(--accent4);background:#e8a80008;">SCALP MODE — 5M</button>
+        <button class="run-btn" id="scalp-btn" onclick="runScalpMode()" style="margin-top:0;margin-bottom:10px;border-color:var(--accent4);color:var(--accent4);background:#e8a80008;letter-spacing:3px;">⚡ SCALP — 5M</button>
         <div class="out-area" id="outArea">
           <div class="empty">
             <div class="empty-icon">◈ ◈ ◈</div>
@@ -1361,7 +1361,7 @@ async function generateChartData() {
     if (!raw) {
       try {
         setLoad(65, 'TRYING BYBIT DIRECT...');
-        const bybitInterval = {'1h':'60','4h':'240','1d':'D','1w':'W'}[interval]||'60';
+        const bybitInterval = {'5m':'5','15m':'15','1h':'60','4h':'240','1d':'D','1w':'W'}[interval]||'60';
         const res = await fetchT(`https://api.bybit.com/v5/market/kline?category=spot&symbol=${symbol}&interval=${bybitInterval}&limit=${limit}`);
         if (res.ok) {
           const data = await res.json();
