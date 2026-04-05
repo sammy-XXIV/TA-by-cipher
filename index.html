@@ -395,7 +395,14 @@
       <div class="ai-wrap">
         <div class="ai-top">
           <div class="ai-title">AI AGENT</div>
-          <div class="ai-badge">CLAUDE</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div class="ai-badge">CLAUDE</div>
+            <!-- MODE TOGGLE -->
+            <div id="modeToggle" onclick="toggleMode()" style="display:flex;align-items:center;gap:0;cursor:pointer;border:1px solid var(--border2);overflow:hidden;font-family:'DM Sans',sans-serif;font-size:9px;font-weight:700;letter-spacing:1px;">
+              <div id="modeToggleSafe" style="padding:3px 8px;background:var(--accent);color:#020408;transition:all 0.2s;">SAFE</div>
+              <div id="modeToggleDegen" style="padding:3px 8px;background:transparent;color:var(--text3);transition:all 0.2s;">DEGEN</div>
+            </div>
+          </div>
         </div>
         <div class="pw-wrap">
           <div class="pw-lbl">// ACCESS PASSWORD</div>
@@ -473,6 +480,7 @@ let activeTimeframe = '1H';
 let chartData = [];
 let searchQuery = '';
 let zoomLevel = 1;
+let degenMode = false;
 let currentUser = null;
 let userProfile = null;
 let analysisHistory = JSON.parse(localStorage.getItem('cipherHistory') || '[]');
@@ -524,21 +532,47 @@ async function goDetail(id) {
   if (!activeToken) return;
   zoomLevel = 1;
   tooltipCandle = null;
-  zoomLevel = 1; // reset zoom for new token
   document.getElementById('homePage').className = 'page hidden-left';
   document.getElementById('detailPage').className = 'page visible';
   document.getElementById('backBtn').classList.add('show');
   updateChartHeader();
   showTab('chart');
   document.getElementById('statsGrid').style.display = 'none';
+
+  // Disable analysis buttons until chart is ready
+  const runBtn   = document.getElementById('runBtn');
+  const scalpBtn = document.getElementById('scalp-btn');
+  if (runBtn)   { runBtn.disabled = true;   runBtn.textContent = 'LOADING CHART...'; }
+  if (scalpBtn) { scalpBtn.disabled = true; scalpBtn.textContent = 'LOADING...'; }
+
   document.getElementById('outArea').innerHTML = `
     <div class="empty">
       <div class="empty-icon">◈</div>
-      READY TO ANALYZE<br>${activeToken.symbol}
+      LOADING CHART DATA...<br>
+      <span style="font-size:9px;color:var(--text3);">Please wait before running analysis</span>
     </div>`;
+
   await generateChartData();
   drawChart();
   updateIndicators();
+
+  // Re-enable after chart loaded
+  const isSimulated = !chartData.length || chartData[0]?.vol === 0;
+  if (runBtn) {
+    runBtn.disabled = false;
+    runBtn.textContent = isSimulated ? 'RUN ANALYSIS (simulated data)' : 'RUN ANALYSIS';
+  }
+  if (scalpBtn) {
+    scalpBtn.disabled = false;
+    scalpBtn.textContent = '⚡ SCALP — 5M';
+  }
+
+  document.getElementById('outArea').innerHTML = `
+    <div class="empty">
+      <div class="empty-icon">◈</div>
+      READY — ${activeToken.symbol}<br>
+      <span style="font-size:9px;color:var(--text3);">${chartData.length} candles loaded</span>
+    </div>`;
 }
 
 function showChartStatus(msg, color='var(--text3)') {
@@ -943,6 +977,34 @@ function saveToHistory(a, token, timeframe) {
 }
 
 function showHistoryPage() {}
+
+function toggleMode() {
+  degenMode = !degenMode;
+  const safe  = document.getElementById('modeToggleSafe');
+  const degen = document.getElementById('modeToggleDegen');
+  const runBtn = document.getElementById('runBtn');
+  const scalpBtn = document.getElementById('scalp-btn');
+
+  if (degenMode) {
+    safe.style.background  = 'transparent';
+    safe.style.color       = 'var(--text3)';
+    degen.style.background = 'var(--accent3)';
+    degen.style.color      = '#fff';
+    if (runBtn)   { runBtn.style.borderColor = 'var(--accent3)'; runBtn.style.color = 'var(--accent3)'; runBtn.style.background = '#e8003d08'; }
+    if (scalpBtn) { scalpBtn.style.borderColor = 'var(--accent3)'; }
+    showChartStatus('DEGEN MODE — High risk signals enabled', 'var(--accent3)');
+    setTimeout(() => showChartStatus(''), 3000);
+  } else {
+    safe.style.background  = 'var(--accent)';
+    safe.style.color       = '#020408';
+    degen.style.background = 'transparent';
+    degen.style.color      = 'var(--text3)';
+    if (runBtn)   { runBtn.style.borderColor = 'var(--accent)'; runBtn.style.color = 'var(--accent)'; runBtn.style.background = '#00e87a08'; }
+    if (scalpBtn) { scalpBtn.style.borderColor = 'var(--accent4)'; }
+    showChartStatus('SAFE MODE — Conservative signals enabled', 'var(--accent)');
+    setTimeout(() => showChartStatus(''), 3000);
+  }
+}
 
 // ============================================================
 // MEXC SCANNER — Sectioned by method
@@ -1626,6 +1688,10 @@ function updateIndicators() {
 async function runScalpMode() {
   if (!currentUser) { window.location.href = 'cipher_auth.html'; return; }
   if (!activeToken) { alert('Select a token first'); return; }
+  if (!chartData.length) {
+    alert('Chart still loading — please wait a moment before running scalp analysis');
+    return;
+  }
 
   const btn = document.getElementById('scalp-btn');
   const runBtn = document.getElementById('runBtn');
@@ -1741,7 +1807,7 @@ async function runScalpMode() {
 
     setLoad(75, 'ASKING AI...');
 
-    const scalpPrompt = `You are CIPHER in SCALP MODE. Give an ultra-fast scalp setup for ${activeToken.symbol}.
+    const scalpPrompt = `You are CIPHER in SCALP MODE${degenMode ? ' — DEGEN' : ''}. Give an ultra-fast scalp setup for ${activeToken.symbol}.
 
 TIMEFRAME: 5M (scalp) | 15M TREND: ${htfTrend}
 Current Price: $${fmt(cp)}
@@ -1753,16 +1819,27 @@ Momentum: ${momentum}
 Recent High: $${fmt(recentHigh)} | Recent Low: $${fmt(recentLow)}
 
 SCALP RULES:
-- Only trade WITH the 15M trend direction
-- Entry must be at EMA9 bounce, recent support/resistance, or momentum breakout
+${degenMode ? `
+- DEGEN MODE: Always give LONG or SHORT. Never SKIP.
+- Trade against the trend if momentum is strong enough — contrarian scalps are valid.
+- Entry AT market is acceptable if momentum is explosive.
+- SL = 0.8x ATR (ultra tight — take the loss fast and re-enter)
+- TP = 2x ATR (ride the momentum further)
+- Time in trade: 2-10 minutes MAX
+- Position size up to 10% — degen scalps hit hard.
+- Chase if needed — missing the move is worse than a bad entry.
+` : `
+- Only trade WITH the 15M trend direction.
+- Entry must be at EMA9 bounce, recent support/resistance, or momentum breakout.
 - SL = 1x ATR (tight — scalps need tight stops)
 - TP = 1.5x ATR (quick profit — don't be greedy)
 - Time in trade: 5-20 minutes MAX
-- Skip if 15M trend is MIXED and RSI is between 40-60
-- Position size MAX 5% of capital — scalping is high risk
+- SKIP only when 15M trend directly contradicts 5M with no resolution.
+- Position size MAX 5% of capital.
+`}
 
 Respond ONLY in JSON:
-{"signal":"LONG or SHORT or SKIP","confidence":50-90,"entry":"price","target":"price (1.5x ATR from entry)","stop":"price (1x ATR from entry)","tp_pct":"expected % gain","sl_pct":"expected % loss","rr":"risk reward e.g 1:1.5","window":"time window e.g 10-15 mins","reasoning":"2 sentences max — be direct","caution":"one caution flag or empty string","chase":"true or false — should they enter at market or wait for pullback"}`;
+{"signal":"LONG or SHORT${degenMode ? '' : ' or SKIP'}","confidence":${degenMode ? '60-95' : '50-90'},"entry":"price","target":"price","stop":"price","tp_pct":"expected % gain","sl_pct":"expected % loss","rr":"risk reward e.g 1:1.5","window":"time window e.g 10-15 mins","reasoning":"2 sentences max — be direct","caution":"${degenMode ? 'one word max risk flag' : 'one caution flag or empty string'}","chase":"true or false"}`;
 
     const aiRes = await fetch(`${SERVER}/analyze`, {
       method: 'POST',
@@ -1892,8 +1969,12 @@ Respond ONLY in JSON:
 }
 
 async function runAnalysis() {
-  if(!currentUser){ window.location.href='cipher_auth.html'; return; }
-  if(!activeToken){alert('Select a token first');return;}
+  if (!currentUser) { window.location.href='cipher_auth.html'; return; }
+  if (!activeToken) { alert('Select a token first'); return; }
+  if (!chartData.length) {
+    alert('Chart still loading — please wait a moment before running analysis');
+    return;
+  }
 
   const btn=document.getElementById('runBtn');
   btn.disabled=true;btn.textContent='ANALYZING...';
@@ -2041,9 +2122,34 @@ async function runAnalysis() {
   } catch(e) {}
 
 
+  const modeInstructions = degenMode ? `
+ANALYSIS MODE: DEGEN 🔥
+- NEVER say NEUTRAL. Always give LONG or SHORT — even if signals conflict.
+- Minimum confidence: 60%. Max: 95%.
+- Volatile tokens are OPPORTUNITIES not warnings. High ATR = high reward potential.
+- Ignore "too volatile" — the user knows the risk and wants the signal.
+- Give aggressive entries — at or near current price if momentum is strong.
+- Position size: up to 15% of capital on high conviction, 5-10% on medium.
+- SL can be wider — up to 20% from entry for high volatility tokens.
+- Focus on MOMENTUM and TREND — ignore ranging/neutral conditions.
+- If RSI > 70 and trending — still give LONG. If RSI < 30 and trending down — still give SHORT.
+- Caution field should be SHORT — just flag the key risk, don't lecture.
+- The user is an experienced trader. Be direct. No hand-holding.
+` : `
+ANALYSIS MODE: SAFE
+- Only give HIGH confidence (80%+) when trend, momentum AND volume all agree.
+- NEUTRAL should be RARE — only use when LONG and SHORT are perfectly balanced.
+- When ADX < 20 (ranging): give LOW confidence (55-65%) directional signal instead of NEUTRAL.
+- If data is limited (few candles), give directional signal with lower confidence 55-65%.
+- Position size: max 20% on high conviction, 5-10% on medium.
+- SL must be realistic — never more than 15% from entry for altcoins.
+- If ATR > 10% of price — flag HIGH risk, reduce size to 1-3%.
+`;
+
   const prompt=`You are CIPHER, elite AI crypto technical analyst. Analyze ${activeToken.symbol} using the provided data and give sharp actionable predictions.
 ${usingSimulated ? '\nWARNING: Chart data unavailable. Analysis based on SIMULATED data — lower confidence recommended.\n' : ''}
 ${lowCandleWarning ? `\nWARNING: ${lowCandleWarning} — keep confidence below 70% and widen SL.\n` : ''}
+${modeInstructions}
 TOKEN: ${activeToken.symbol} (${activeToken.name})
 TIMEFRAME: ${activeTimeframe}
 CURRENT PRICE: ${fmt(cp)}
@@ -2077,10 +2183,13 @@ ${(() => {
   const rangePct = ((activeToken.high - activeToken.low) / activeToken.low * 100);
   const atrPct   = (atr / cp * 100);
   const warnings = [];
-  if (rangePct > 100) warnings.push(`EXTREME PUMP DETECTED: 24H range is ${rangePct.toFixed(0)}% — likely a crime pump or manipulation. DO NOT SHORT. Signal NEUTRAL unless clear setup exists.`);
-  else if (rangePct > 50) warnings.push(`HIGH VOLATILITY: 24H range ${rangePct.toFixed(0)}% — reduce confidence and position size.`);
-  if (atrPct > 10) warnings.push(`ATR is ${atrPct.toFixed(1)}% of price — extremely volatile, SL must be tight, position size max 2%.`);
-  if (activeToken.change > 50) warnings.push(`Price up ${activeToken.change.toFixed(0)}% today — do NOT short the top without confirmation of reversal.`);
+  if (!degenMode) {
+    if (rangePct > 100) warnings.push(`EXTREME PUMP: 24H range ${rangePct.toFixed(0)}% — crime pump risk. Signal NEUTRAL unless clear setup.`);
+    else if (rangePct > 50) warnings.push(`HIGH VOLATILITY: 24H range ${rangePct.toFixed(0)}% — reduce confidence and size.`);
+    if (atrPct > 10) warnings.push(`ATR is ${atrPct.toFixed(1)}% of price — extremely volatile. Max 2% position size.`);
+  } else {
+    if (rangePct > 100) warnings.push(`24H range ${rangePct.toFixed(0)}% — crime pump possible. Factor into SL placement.`);
+  }
   return warnings.length ? `WARNINGS:\n${warnings.map(w => `- ${w}`).join('\n')}` : '';
 })()}
 
@@ -2088,26 +2197,19 @@ KEY LEVELS:
 - Support: ${fmt(sup)} | Resistance: ${fmt(res)}
 - Swing High: ${fmt(swingHigh)} | Swing Low: ${fmt(swingLow)}
 
-Based on the above data, provide a comprehensive analysis.
-- Set STOP LOSS at 1.5x ATR from entry
-- Set TAKE PROFIT at 3x ATR from entry (1:2 minimum R/R)
-- Only give HIGH confidence (80%+) when trend, momentum AND volume all agree
-- Give NEUTRAL if ADX < 20 (no clear trend)
-
-ENTRY RULES — CRITICAL:
-- LONG entry = nearest support, EMA bounce zone, or recent swing LOW — slightly BELOW current price so you get filled
-- SHORT entry = nearest support breakdown level or EMA rejection — slightly BELOW current price (not above — price rarely pulls back up on shorts)
-- NEVER set entry far above current price for a SHORT — it won't fill and the move will be missed
-- If RSI > 80 and price is above Bollinger Upper Band — this is likely a pump. Do NOT short a pump. Set signal to NEUTRAL with caution.
-- If 24H range > 100% — EXTREME VOLATILITY. Reduce confidence by 20%. Warn in caution field.
-- If volume is HIGH and price made a massive move already — the best trade is often to WAIT for the pullback, not chase
-
-STOP LOSS RULES:
-- SL must be realistic — never more than 15% from entry for altcoins
-- If ATR is > 10% of price, the token is too volatile — flag as HIGH risk and reduce position size to 1-3%
+ENTRY RULES:
+- LONG entry = nearest support, EMA bounce zone, or recent swing LOW — slightly BELOW current price
+- SHORT entry = nearest support breakdown level or EMA rejection zone
+- NEVER set entry far above current price for a SHORT
+${degenMode ? '- DEGEN: If momentum is strong, entry AT market is acceptable. Chase if needed.' : `- SAFE: Assess whether to wait or chase:
+  * If price is within 1x ATR of key level → LIMIT entry, wait for pullback
+  * If momentum is explosive (volume spike + 3 consecutive candles in direction) → MARKET entry, chase now — missing the move is worse
+  * If price already moved 2x ATR past key level → DO NOT CHASE — set entry at next support/resistance and wait for new setup
+  * Always specify in entry field: "LIMIT — wait for pullback" OR "MARKET — chase now" OR "WAIT — move extended, next entry at X"
+`}
 
 Respond ONLY with JSON (no markdown):
-{"signal":"LONG or SHORT or NEUTRAL","confidence":55-95,"accuracy":55-92,"bias":"punchy uppercase one-liner","reasoning":"3-4 sentences covering trend, momentum, volume, and key levels","caution":"1-2 sentences on specific caution flags","confirmation":"what needs to happen to confirm the signal","alternative":"what to do if signal fails","entry":"best entry price at key support/resistance level — NOT just current price","target":"take profit price (3x ATR from entry)","stop":"stop loss price (1.5x ATR from entry)","rr_ratio":"risk reward ratio e.g. 1:2","roi":"expected ROI % if TP is hit e.g. +4.2%","position_size":"recommended % of capital","risk":"LOW or MEDIUM or HIGH","risk_reason":"one sentence explaining risk","sentiment_impact":"one sentence on Fear & Greed and funding rate impact"}`;
+{"signal":"LONG or SHORT${degenMode ? '' : ' or NEUTRAL'}","confidence":${degenMode ? '60-95' : '55-95'},"accuracy":55-92,"bias":"punchy uppercase one-liner${degenMode ? ' — aggressive' : ''}","reasoning":"3-4 sentences covering trend, momentum, volume, and key levels","caution":"${degenMode ? '1 sentence max — key risk only' : '1-2 sentences on specific caution flags'}","confirmation":"what needs to happen to confirm the signal","alternative":"what to do if signal fails","entry":"best entry price","target":"take profit price (${degenMode ? '2x' : '3x'} ATR from entry)","stop":"stop loss price (${degenMode ? '1x' : '1.5x'} ATR from entry)","rr_ratio":"risk reward ratio e.g. 1:2","roi":"expected ROI %","position_size":"recommended % of capital${degenMode ? ' — up to 15% on high conviction' : ''}","risk":"LOW or MEDIUM or HIGH","risk_reason":"one sentence explaining risk","sentiment_impact":"one sentence on Fear & Greed and funding rate impact"}`;
 
   try {
     const r=await fetch(`${SERVER}/analyze`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt})});
