@@ -93,9 +93,7 @@
     position:absolute; inset:0; display:flex; flex-direction:column; overflow:hidden;
     transition: transform 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.3s ease;
   }
-  .page.hidden-right { transform:translateX(100%); opacity:0; pointer-events:none; }
-  .page.hidden-left  { transform:translateX(-30%); opacity:0; pointer-events:none; }
-  .page.visible      { transform:translateX(0); opacity:1; pointer-events:all; }
+  /* PAGES — see chart section for smooth transitions */
 
   /* HOME PAGE */
   .home-bar {
@@ -155,8 +153,11 @@
   .dtab {
     flex:1; padding:11px; text-align:center; font-size:9px; letter-spacing:2px;
     color:var(--text3); cursor:pointer; border:none; border-bottom:2px solid transparent;
-    background:none; font-family:'DM Sans',sans-serif; font-weight:500; transition:all 0.2s;
+    background:none; font-family:'DM Sans',sans-serif; font-weight:500;
     text-transform:uppercase;
+    transition: color 0.28s cubic-bezier(0.32,0.72,0,1),
+                border-color 0.28s cubic-bezier(0.32,0.72,0,1),
+                background 0.28s cubic-bezier(0.32,0.72,0,1);
   }
   .dtab.active { color:var(--accent); border-bottom-color:var(--accent); background:#00e87a05; }
 
@@ -166,23 +167,42 @@
   /* Chart */
   .chart-topbar {
     display:flex; align-items:center; justify-content:space-between;
-    padding:8px 14px; border-bottom:1px solid var(--border);
-    background:var(--bg2); flex-shrink:0;
+    padding:6px 10px; border-bottom:1px solid var(--border);
+    background:var(--bg2); flex-shrink:0; gap:6px;
   }
-  .c-info { display:flex; align-items:baseline; gap:8px; }
-  .c-sym { font-family:'Orbitron',sans-serif; font-size:16px; font-weight:900; color:var(--accent); text-shadow:var(--glow); letter-spacing:2px; }
-  .c-price { font-family:'Rajdhani',sans-serif; font-size:15px; font-weight:600; color:var(--text); }
-  .c-chg { font-size:10px; padding:1px 6px; border-radius:2px; }
-  .c-chg.up   { background:#00ff9d15; color:var(--accent);  border:1px solid #00ff9d30; }
-  .c-chg.down { background:#ff3c6e15; color:var(--accent3); border:1px solid #ff3c6e30; }
+  .c-info { display:flex; align-items:center; gap:6px; flex-shrink:0; min-width:0; overflow:hidden; }
+  .c-sym { font-family:'Orbitron',sans-serif; font-size:14px; font-weight:900; color:var(--accent); text-shadow:var(--glow); letter-spacing:2px; flex-shrink:0; }
+  .c-price { font-family:'Rajdhani',sans-serif; font-size:14px; font-weight:600; color:var(--text); flex-shrink:0; }
+  .c-chg { font-size:9px; padding:1px 5px; border-radius:2px; flex-shrink:0; }
+  .c-chg.up   { background:#00e87a15; color:var(--accent);  border:1px solid #00e87a30; }
+  .c-chg.down { background:#e8003d15; color:var(--accent3); border:1px solid #e8003d30; }
 
-  .tf-btns { display:flex; gap:3px; }
+  .tf-row {
+    display:flex; align-items:center; gap:3px; flex-shrink:0;
+  }
+  .tf-btns { display:flex; gap:2px; }
   .tf-btn {
     background:none; border:1px solid var(--border2); color:var(--text3);
-    font-family:'Share Tech Mono',monospace; font-size:9px; padding:3px 7px;
-    cursor:pointer; letter-spacing:1px; transition:all 0.2s;
+    font-family:'Share Tech Mono',monospace; font-size:9px; padding:4px 7px;
+    cursor:pointer; letter-spacing:0.5px; flex-shrink:0;
+    transition: color 0.25s cubic-bezier(0.25,0.46,0.45,0.94),
+                border-color 0.25s cubic-bezier(0.25,0.46,0.45,0.94),
+                background 0.25s cubic-bezier(0.25,0.46,0.45,0.94);
   }
-  .tf-btn.active, .tf-btn:active { border-color:var(--accent); color:var(--accent); background:#00ff9d10; }
+  .tf-btn.active { border-color:var(--accent); color:var(--accent); background:#00e87a10; }
+
+  /* Apple-smooth page transitions */
+  .page {
+    position:absolute; inset:0; display:flex; flex-direction:column; overflow:hidden;
+    transition: transform 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+                opacity 0.42s cubic-bezier(0.32, 0.72, 0, 1);
+    will-change: transform, opacity;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+  }
+  .page.hidden-right { transform:translateX(100%); opacity:0; pointer-events:none; }
+  .page.hidden-left  { transform:translateX(-20%); opacity:0; pointer-events:none; }
+  .page.visible      { transform:translateX(0); opacity:1; pointer-events:all; }
 
   .chart-area { flex:1; position:relative; overflow:hidden; min-height:180px; }
   #chartCanvas { width:100%; height:100%; display:block; }
@@ -349,8 +369,7 @@
           <div class="c-price" id="cPrice">$—</div>
           <div class="c-chg up" id="cChg">+0.00%</div>
         </div>
-        <div style="display:flex;align-items:center;gap:4px;">
-          <button onclick="refreshChart()" id="refreshChartBtn" style="background:none;border:1px solid var(--border2);color:var(--accent2);font-family:'Share Tech Mono',monospace;font-size:10px;padding:3px 8px;cursor:pointer;letter-spacing:1px;transition:all 0.2s;" title="Refresh chart">REFRESH</button>
+        <div class="tf-row">
           <div class="tf-btns">
             <button class="tf-btn" data-tf="5M">5M</button>
             <button class="tf-btn" data-tf="15M">15M</button>
@@ -359,6 +378,7 @@
             <button class="tf-btn" data-tf="1D">1D</button>
             <button class="tf-btn" data-tf="1W">1W</button>
           </div>
+          <button onclick="refreshChart()" id="refreshChartBtn" style="background:none;border:1px solid var(--border2);color:var(--text3);font-family:'Share Tech Mono',monospace;font-size:9px;padding:4px 7px;cursor:pointer;transition:all 0.2s;flex-shrink:0;" title="Refresh">↺</button>
         </div>
       </div>
       <div id="chartStatus" style="display:none;padding:4px 12px;font-size:8px;letter-spacing:1px;text-align:center;"></div>
@@ -525,6 +545,7 @@ function goHome() {
   document.getElementById('backBtn').classList.remove('show');
   const btn = document.getElementById('scanNavBtn');
   if (btn) { btn.textContent = 'SCAN'; btn.onclick = showScannerPage; }
+  sessionStorage.removeItem('cipher_active_token');
 }
 
 async function goDetail(id) {
@@ -555,8 +576,7 @@ async function goDetail(id) {
   await generateChartData();
   drawChart();
   updateIndicators();
-
-  // Re-enable after chart loaded
+  savePageState();
   const isSimulated = !chartData.length || chartData[0]?.vol === 0;
   if (runBtn) {
     runBtn.disabled = false;
@@ -2903,6 +2923,7 @@ document.querySelectorAll('.tf-btn').forEach(btn=>{
     await generateChartData();
     drawChart();
     updateIndicators();
+    savePageState();
   });
 });
 
@@ -3012,11 +3033,32 @@ document.querySelector('.chart-area').addEventListener('touchend', e => {
 // RESIZE
 new ResizeObserver(drawChart).observe(document.querySelector('.chart-area'));
 
-// INIT
+// Save active token to sessionStorage whenever it changes
+function savePageState() {
+  if (activeToken) {
+    sessionStorage.setItem('cipher_active_token', activeToken.id);
+    sessionStorage.setItem('cipher_active_tf', activeTimeframe);
+  }
+}
+
+// Restore state after prices load
+async function restorePageState() {
+  const savedId = sessionStorage.getItem('cipher_active_token');
+  const savedTf = sessionStorage.getItem('cipher_active_tf');
+  if (!savedId) return;
+  const token = TOKENS.find(t => t.id === savedId);
+  if (!token) return;
+  if (savedTf) {
+    activeTimeframe = savedTf;
+    document.querySelectorAll('.tf-btn').forEach(b => b.classList.toggle('active', b.dataset.tf === savedTf));
+  }
+  await goDetail(token.id);
+}
+
 // INIT — check auth first then load
 initAuth().then(ok => {
   if (!ok) return;
-  fetchPrices();
+  fetchPrices().then(() => restorePageState());
   setInterval(fetchPrices, 60000);
 });
 </script>
