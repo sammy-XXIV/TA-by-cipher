@@ -1262,6 +1262,32 @@ function updateChartHeader() {
   const el = document.getElementById('cChg');
   el.textContent = (activeToken.change >= 0 ? '+':'') + activeToken.change.toFixed(2) + '%';
   el.className = 'c-chg ' + (activeToken.change >= 0 ? 'up':'down');
+  // Refresh live price from server in background
+  refreshLivePrice();
+}
+
+async function refreshLivePrice() {
+  if (!activeToken) return;
+  try {
+    const r = await fetch(`${SERVER}/ticker?symbol=${activeToken.symbol}`, {signal: AbortSignal.timeout(6000)});
+    if (!r.ok) return;
+    const d = await r.json();
+    if (!d.price || d.price <= 0) return;
+    // Update token with fresh data
+    activeToken.price  = d.price;
+    activeToken.change = d.change || activeToken.change;
+    activeToken.high   = d.high   || activeToken.high;
+    activeToken.low    = d.low    || activeToken.low;
+    // Update UI
+    document.getElementById('cPrice').textContent = fmt(d.price);
+    const el = document.getElementById('cChg');
+    const chg = d.change || activeToken.change;
+    el.textContent = (chg >= 0 ? '+':'') + chg.toFixed(2) + '%';
+    el.className = 'c-chg ' + (chg >= 0 ? 'up':'down');
+    // Update 24H stats if visible
+    if (d.high) document.getElementById('s24h').textContent = fmt(d.high);
+    if (d.low)  document.getElementById('sLow').textContent = fmt(d.low);
+  } catch(e) {}
 }
 
 // REAL CHART DATA FROM BINANCE
@@ -1581,8 +1607,11 @@ function updateIndicators() {
   const swingHigh=Math.max(...highs.slice(-50));
   const swingLow=Math.min(...lows.slice(-50));
 
-  document.getElementById('s24h').textContent=fmt(activeToken.high);
-  document.getElementById('sLow').textContent=fmt(activeToken.low);
+  // 24H stats — use token's actual 24H high/low from ticker, not candle derived
+  const high24 = activeToken.high > 0 ? activeToken.high : Math.max(...highs);
+  const low24  = activeToken.low  > 0 ? activeToken.low  : Math.min(...lows);
+  document.getElementById('s24h').textContent=fmt(high24);
+  document.getElementById('sLow').textContent=fmt(low24);
   document.getElementById('sSup').textContent=fmt(sup);
   document.getElementById('sRes').textContent=fmt(res);
   document.getElementById('statsGrid').style.display='grid';
