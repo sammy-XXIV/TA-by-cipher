@@ -430,6 +430,14 @@
             autocomplete="off" autocorrect="off" spellcheck="false"
             onkeydown="if(event.key==='Enter')runAnalysis()">
         </div>
+        <!-- TOKEN GRADE PANEL -->
+        <div id="gradePanel" style="display:none;margin:10px 14px 0;border:1px solid var(--border2);background:var(--bg3);">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--border);">
+            <div style="font-size:8px;color:var(--text3);letter-spacing:2px;">CIPHER GRADE</div>
+            <div id="gradeLetter" style="font-family:'Orbitron',sans-serif;font-size:20px;font-weight:900;">—</div>
+          </div>
+          <div id="gradeRows" style="padding:8px 12px;display:flex;flex-direction:column;gap:5px;"></div>
+        </div>
         <div class="stats-g" id="statsGrid" style="display:none">
           <div class="stat-c"><div class="stat-l">24H HIGH</div><div class="stat-v" id="s24h">—</div></div>
           <div class="stat-c"><div class="stat-l">24H LOW</div><div class="stat-v" id="sLow">—</div></div>
@@ -544,6 +552,8 @@ function goHome() {
   document.getElementById('detailPage').className = 'page hidden-right';
   document.getElementById('scannerPage').className = 'page hidden-right';
   document.getElementById('backBtn').classList.remove('show');
+  const gp = document.getElementById('gradePanel');
+  if (gp) gp.style.display = 'none';
   const btn = document.getElementById('scanNavBtn');
   if (btn) { btn.textContent = 'SCAN'; btn.onclick = showScannerPage; }
   sessionStorage.removeItem('cipher_active_token');
@@ -579,6 +589,7 @@ async function goDetail(id) {
   await generateChartData();
   drawChart();
   updateIndicators();
+  gradeToken();
   savePageState();
   const isSimulated = !chartData.length || chartData[0]?.vol === 0;
   if (runBtn) {
@@ -996,6 +1007,170 @@ function saveToHistory(a, token, timeframe) {
 }
 
 function showHistoryPage() {}
+
+// ============================================================
+// TOKEN GRADING SYSTEM
+// ============================================================
+function gradeToken() {
+  if (!activeToken || !chartData.length) return;
+
+  const price   = activeToken.price || 0;
+  const change  = activeToken.change || 0;
+  const high24  = activeToken.high || price;
+  const low24   = activeToken.low  || price;
+  const vol24   = activeToken.vol  || 0;
+
+  const closes  = chartData.map(c => c.close);
+  const highs   = chartData.map(c => c.high);
+  const lows    = chartData.map(c => c.low);
+  const vols    = chartData.map(c => c.vol);
+  const n       = closes.length;
+  if (n < 10) return;
+
+  const rangePct  = low24 > 0 ? ((high24 - low24) / low24) * 100 : 0;
+  const avgVol    = vols.slice(-20).reduce((a,b)=>a+b,0) / Math.min(20,n);
+  const lastVol   = vols[n-1];
+
+  // ATR
+  let atr = 0;
+  for (let i = Math.max(1,n-14); i < n; i++) {
+    atr += Math.max(highs[i]-lows[i], Math.abs(highs[i]-closes[i-1]), Math.abs(lows[i]-closes[i-1]));
+  }
+  atr /= Math.min(14, n-1);
+  const atrPct = price > 0 ? (atr / price) * 100 : 0;
+
+  // EMA trend
+  const emaCalc = (d, p) => { const k=2/(p+1); let e=d[0]; for(let i=1;i<d.length;i++) e=d[i]*k+e*(1-k); return e; };
+  const ema20 = emaCalc(closes, 20);
+  const ema50 = emaCalc(closes.slice(-60), 50);
+  const emaBullish = price > ema20 && ema20 > ema50;
+  const emaBearish = price < ema20 && ema20 < ema50;
+
+  // RSI — proper Wilder smoothing
+  let rsi = 50;
+  if (n >= 15) {
+    let avgGain = 0, avgLoss = 0;
+    for (let i = 1; i <= 14; i++) {
+      const d = closes[i] - closes[i-1];
+      if (d > 0) avgGain += d; else avgLoss -= d;
+    }
+    avgGain /= 14; avgLoss /= 14;
+    for (let i = 15; i < n; i++) {
+      const d = closes[i] - closes[i-1];
+      avgGain = (avgGain * 13 + (d > 0 ? d : 0)) / 14;
+      avgLoss = (avgLoss * 13 + (d < 0 ? -d : 0)) / 14;
+    }
+    rsi = avgLoss === 0 ? 100 : Math.round(100 - (100 / (1 + avgGain / avgLoss)));
+    rsi = Math.max(0, Math.min(100, rsi));
+  }
+
+  // ── SCORE EACH DIMENSION (0-10) ──
+  const scores = {};
+
+  // 1. LIQUIDITY — price range + volume
+  let liqScore = 5;
+  if (price > 1)      liqScore += 2;
+  if (price > 10)     liqScore += 1;
+  if (price < 0.001)  liqScore -= 3;
+  if (price < 0.0001) liqScore -= 2;
+  if (lastVol > avgVol * 1.5) liqScore += 1;
+  if (lastVol < avgVol * 0.3) liqScore -= 2;
+  scores.liquidity = Math.max(0, Math.min(10, liqScore));
+
+  // 2. VOLATILITY — lower range = more predictable = higher score
+  let volScore = 8;
+  if (rangePct > 100) volScore = 0;
+  else if (rangePct > 50) volScore = 2;
+  else if (rangePct > 30) volScore = 4;
+  else if (rangePct > 15) volScore = 6;
+  else if (rangePct > 8)  volScore = 8;
+  else volScore = 10;
+  if (atrPct > 15) volScore = Math.min(volScore, 1);
+  if (atrPct > 10) volScore = Math.min(volScore, 3);
+  scores.volatility = volScore;
+
+  // 3. TREND STRENGTH — clear trend = higher score
+  let trendScore = 5;
+  if (emaBullish || emaBearish) trendScore += 3;
+  if (Math.abs(change) > 5 && Math.abs(change) < 30) trendScore += 2;
+  if (Math.abs(change) > 50) trendScore -= 3;
+  scores.trend = Math.max(0, Math.min(10, trendScore));
+
+  // 4. VOLUME QUALITY
+  let volQScore = 5;
+  if (lastVol > avgVol * 2)   volQScore = 9;
+  else if (lastVol > avgVol)  volQScore = 7;
+  else if (lastVol < avgVol * 0.5) volQScore = 3;
+  scores.volume = volQScore;
+
+  // 5. MOMENTUM — RSI in healthy range
+  let momScore = 5;
+  if (rsi >= 40 && rsi <= 60) momScore = 6;
+  if (rsi >= 50 && rsi <= 70) momScore = 8; // bullish but not overbought
+  if (rsi >= 30 && rsi <= 45) momScore = 7; // oversold bounce potential
+  if (rsi > 80 || rsi < 20)   momScore = 3; // extreme
+  scores.momentum = momScore;
+
+  // ── OVERALL SCORE ──
+  const weights = { liquidity:0.25, volatility:0.30, trend:0.20, volume:0.15, momentum:0.10 };
+  const overall = Object.entries(weights).reduce((sum,[k,w]) => sum + scores[k]*w, 0);
+
+  // ── GRADE ──
+  let grade, gradeColor;
+  if (overall >= 8.5)      { grade = 'A+'; gradeColor = '#00e87a'; }
+  else if (overall >= 7.5) { grade = 'A';  gradeColor = '#00e87a'; }
+  else if (overall >= 6.5) { grade = 'B+'; gradeColor = '#00b8e6'; }
+  else if (overall >= 5.5) { grade = 'B';  gradeColor = '#00b8e6'; }
+  else if (overall >= 4.5) { grade = 'C+'; gradeColor = '#e8a800'; }
+  else if (overall >= 3.5) { grade = 'C';  gradeColor = '#e8a800'; }
+  else if (overall >= 2.5) { grade = 'D';  gradeColor = '#e8003d'; }
+  else                     { grade = 'F';  gradeColor = '#e8003d'; }
+
+  // ── VERDICT ──
+  const verdicts = {
+    'A+': 'IDEAL SETUP — High quality token, strong signals',
+    'A':  'GOOD TOKEN — Clean setup, tradeable with normal size',
+    'B+': 'ABOVE AVERAGE — Solid setup with minor cautions',
+    'B':  'TRADEABLE — Some risk factors, reduce size slightly',
+    'C+': 'CAUTION — Notable risk, use smaller position',
+    'C':  'HIGH RISK — Significant volatility, max 3% size',
+    'D':  'DANGEROUS — Very high risk, consider skipping',
+    'F':  'DO NOT TRADE — Extreme risk, likely manipulation',
+  };
+
+  // ── RENDER ──
+  const panel = document.getElementById('gradePanel');
+  const letter = document.getElementById('gradeLetter');
+  const rows = document.getElementById('gradeRows');
+  if (!panel || !letter || !rows) return;
+
+  letter.textContent = grade;
+  letter.style.color = gradeColor;
+
+  const dims = [
+    { label: 'LIQUIDITY',  score: scores.liquidity,  icon: '💧' },
+    { label: 'VOLATILITY', score: scores.volatility, icon: '⚡' },
+    { label: 'TREND',      score: scores.trend,       icon: '📈' },
+    { label: 'VOLUME',     score: scores.volume,      icon: '📊' },
+    { label: 'MOMENTUM',   score: scores.momentum,    icon: '🔥' },
+  ];
+
+  rows.innerHTML = dims.map(d => {
+    const barColor = d.score >= 7 ? 'var(--accent)' : d.score >= 5 ? 'var(--accent4)' : 'var(--accent3)';
+    return `
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="font-size:8px;color:var(--text3);letter-spacing:1px;width:70px;flex-shrink:0;">${d.label}</div>
+        <div style="flex:1;background:var(--border2);height:4px;border-radius:2px;overflow:hidden;">
+          <div style="width:${d.score*10}%;height:100%;background:${barColor};border-radius:2px;transition:width 0.6s cubic-bezier(0.32,0.72,0,1);"></div>
+        </div>
+        <div style="font-size:9px;color:${barColor};width:20px;text-align:right;font-family:'Orbitron',sans-serif;">${d.score}</div>
+      </div>`;
+  }).join('') + `
+    <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);font-size:9px;color:${gradeColor};font-family:'DM Sans',sans-serif;">${verdicts[grade]}</div>
+  `;
+
+  panel.style.display = 'block';
+}
 
 function toggleMode() {
   degenMode = !degenMode;
@@ -1601,10 +1776,20 @@ function updateIndicators() {
   const vols=chartData.map(c=>c.vol);
   const n=closes.length;
 
-  // RSI (14)
-  let g=0,l=0;
-  for(let i=1;i<=14;i++){const d=closes[i]-closes[i-1];d>0?g+=d:l-=d;}
-  const rsi=Math.round(100-(100/(1+(l===0?100:g/l))));
+  // RSI (14) — proper Wilder smoothing
+  let rsi = 50;
+  if (n >= 15) {
+    let avgG = 0, avgL = 0;
+    for (let i = 1; i <= 14; i++) { const d=closes[i]-closes[i-1]; d>0?avgG+=d:avgL-=d; }
+    avgG/=14; avgL/=14;
+    for (let i = 15; i < n; i++) {
+      const d=closes[i]-closes[i-1];
+      avgG=(avgG*13+(d>0?d:0))/14;
+      avgL=(avgL*13+(d<0?-d:0))/14;
+    }
+    rsi = avgL===0 ? 100 : Math.round(100-(100/(1+avgG/avgL)));
+    rsi = Math.max(0, Math.min(100, rsi));
+  }
   const rEl=document.getElementById('rsiVal');
   rEl.textContent=rsi;rEl.className='ind-val '+(rsi>70?'bearish':rsi<30?'bullish':'neutral');
   const rf=document.getElementById('rsiFill');
@@ -2385,39 +2570,128 @@ async function runAnalysis() {
   const closes = analysisChartData.map(c=>c.close);
   const n = closes.length;
 
-  // Recalculate indicators from fresh data
+  // Recalculate ALL indicators from fresh data — do NOT use updateIndicators() for analysis
   const freshHighs = analysisChartData.map(c=>c.high);
-  const freshLows = analysisChartData.map(c=>c.low);
-  const freshVols = analysisChartData.map(c=>c.vol);
+  const freshLows  = analysisChartData.map(c=>c.low);
+  const freshVols  = analysisChartData.map(c=>c.vol);
 
-  // RSI from fresh data
+  // ── RSI(14) — proper Wilder smoothing over full history ──
   let freshRsi = 50;
-  let fg2=0, fl2=0;
-  for(let i=1;i<=14;i++){const d=closes[i]-closes[i-1];d>0?fg2+=d:fl2-=d;}
-  freshRsi = Math.round(100-(100/(1+(fl2===0?100:fg2/fl2))));
+  try {
+    if (n >= 15) {
+      // First avg gain/loss over first 14 periods
+      let avgGain = 0, avgLoss = 0;
+      for (let i = 1; i <= 14; i++) {
+        const d = closes[i] - closes[i-1];
+        if (d > 0) avgGain += d; else avgLoss -= d;
+      }
+      avgGain /= 14; avgLoss /= 14;
+      // Wilder smooth over remaining candles
+      for (let i = 15; i < n; i++) {
+        const d = closes[i] - closes[i-1];
+        const gain = d > 0 ? d : 0;
+        const loss = d < 0 ? -d : 0;
+        avgGain = (avgGain * 13 + gain) / 14;
+        avgLoss = (avgLoss * 13 + loss) / 14;
+      }
+      freshRsi = avgLoss === 0 ? 100 : Math.round(100 - (100 / (1 + avgGain / avgLoss)));
+      freshRsi = Math.max(0, Math.min(100, freshRsi));
+    }
+  } catch(e) {}
 
-  // MACD from fresh data
-  const fm12=ema(closes,12),fm26=ema(closes,26),fml=fm12.map((v,i)=>v-fm26[i]),fsig=ema(fml,9);
-  const freshMacd=fml[n-1]-fsig[n-1];
+  // ── MACD (12,26,9) ──
+  const fm12 = ema(closes, 12);
+  const fm26 = ema(closes, 26);
+  const fml  = fm12.map((v,i) => v - fm26[i]);
+  const fsig = ema(fml, 9);
+  const freshMacd = fml[n-1] - fsig[n-1];
 
-  // ATR from fresh data
-  let fatrSum=0;
-  for(let i=n-14;i<n;i++){
-    const tr=Math.max(freshHighs[i]-freshLows[i],Math.abs(freshHighs[i]-closes[i-1]),Math.abs(freshLows[i]-closes[i-1]));
-    fatrSum+=tr;
-  }
-  const freshAtr=fatrSum/14;
+  // ── ATR(14) — using correct high/low/close arrays ──
+  let freshAtr = 0;
+  try {
+    let fatrSum = 0;
+    const atrStart = Math.max(1, n-14);
+    for (let i = atrStart; i < n; i++) {
+      const tr = Math.max(
+        freshHighs[i] - freshLows[i],
+        Math.abs(freshHighs[i] - closes[i-1]),
+        Math.abs(freshLows[i] - closes[i-1])
+      );
+      fatrSum += tr;
+    }
+    freshAtr = fatrSum / (n - atrStart);
+  } catch(e) {}
 
-  const ind=updateIndicators()||{};
-  const {vwap=0,adx=0,volumeStrength='AVERAGE'}=ind;
-  const rsi=freshRsi, macd=freshMacd, atr=freshAtr;
-  const sup=Math.min(...freshLows.slice(-20));
-  const res=Math.max(...freshHighs.slice(-20));
-  const swingHigh=Math.max(...freshHighs.slice(-50));
-  const swingLow=Math.min(...freshLows.slice(-50));
-  const e20=ema(closes,20),e50=ema(closes,50),cp=closes[n-1];
-  const bs=closes.slice(-20),bm=bs.reduce((a,b)=>a+b)/20;
-  const bstd=Math.sqrt(bs.reduce((a,b)=>a+(b-bm)**2,0)/20);
+  // ── VWAP (from fresh candles) ──
+  let freshVwap = closes[n-1];
+  try {
+    let cumTPV = 0, cumVol = 0;
+    for (let i = 0; i < n; i++) {
+      const tp = (freshHighs[i] + freshLows[i] + closes[i]) / 3;
+      cumTPV += tp * freshVols[i];
+      cumVol += freshVols[i];
+    }
+    if (cumVol > 0) freshVwap = cumTPV / cumVol;
+  } catch(e) {}
+
+  // ── EMA 20/50 — with edge case handling ──
+  const e20 = n >= 20 ? ema(closes, 20) : ema(closes, n);
+  const e50 = n >= 50 ? ema(closes, 50) : ema(closes, n);
+  const cp  = closes[n-1];
+
+  // ── ADX(14) ──
+  let freshAdx = 0;
+  try {
+    const trueRanges = [], plusDM = [], minusDM = [];
+    for (let i = 1; i < n; i++) {
+      const tr = Math.max(freshHighs[i]-freshLows[i], Math.abs(freshHighs[i]-closes[i-1]), Math.abs(freshLows[i]-closes[i-1]));
+      const up = freshHighs[i] - freshHighs[i-1];
+      const dn = freshLows[i-1] - freshLows[i];
+      trueRanges.push(tr);
+      plusDM.push(up > dn && up > 0 ? up : 0);
+      minusDM.push(dn > up && dn > 0 ? dn : 0);
+    }
+    const p = 14;
+    let atr14 = trueRanges.slice(0,p).reduce((a,b)=>a+b,0);
+    let pDM   = plusDM.slice(0,p).reduce((a,b)=>a+b,0);
+    let mDM   = minusDM.slice(0,p).reduce((a,b)=>a+b,0);
+    const dxArr = [];
+    for (let i = p; i < trueRanges.length; i++) {
+      atr14 = atr14 - atr14/p + trueRanges[i];
+      pDM   = pDM   - pDM/p   + plusDM[i];
+      mDM   = mDM   - mDM/p   + minusDM[i];
+      const pDI = 100 * pDM / atr14;
+      const mDI = 100 * mDM / atr14;
+      dxArr.push(100 * Math.abs(pDI - mDI) / ((pDI + mDI) || 1));
+    }
+    freshAdx = Math.round(dxArr.slice(-14).reduce((a,b)=>a+b,0) / Math.min(14, dxArr.length));
+  } catch(e) {}
+
+  // ── Bollinger Bands(20) ──
+  const bbPeriod = Math.min(20, n);
+  const bs  = closes.slice(-bbPeriod);
+  const bm  = bs.reduce((a,b)=>a+b,0) / bbPeriod;
+  const bstd = Math.sqrt(bs.reduce((a,b)=>a+(b-bm)**2,0) / bbPeriod);
+
+  // ── Support / Resistance ──
+  const sup       = Math.min(...freshLows.slice(-20));
+  const res       = Math.max(...freshHighs.slice(-20));
+  const swingHigh = Math.max(...freshHighs.slice(-Math.min(50,n)));
+  const swingLow  = Math.min(...freshLows.slice(-Math.min(50,n)));
+
+  // ── Volume Strength ──
+  const avgVol2 = freshVols.slice(-20).reduce((a,b)=>a+b,0) / Math.min(20, n);
+  const lastVol2 = freshVols[n-1];
+  const volumeStrength = lastVol2 > avgVol2*1.5 ? 'HIGH (strong confirmation)' :
+                         lastVol2 > avgVol2      ? 'ABOVE AVERAGE' :
+                         lastVol2 < avgVol2*0.5  ? 'LOW (weak signal)' : 'AVERAGE';
+
+  // Use calculated values
+  const rsi  = freshRsi;
+  const macd = freshMacd;
+  const atr  = freshAtr;
+  const vwap = freshVwap;
+  const adx  = freshAdx;
 
 
   // Fetch Funding Rate from Binance futures
@@ -2518,15 +2792,30 @@ VOLUME:
 ${(() => {
   const rangePct = ((activeToken.high - activeToken.low) / activeToken.low * 100);
   const atrPct   = (atr / cp * 100);
+  const price    = activeToken?.price || cp;
   const warnings = [];
+
+  // HARD BLOCK — never short a micro-cap pump
+  const isMicroCap = price < 0.01;
+  const isPumping  = activeToken.change > 20;
+  const isExtreme  = rangePct > 80;
+
+  if (isMicroCap && isPumping) {
+    warnings.push(`🚨 HARD BLOCK: Micro-cap token (${fmt(price)}) with +${activeToken.change.toFixed(0)}% pump. DO NOT SHORT. Signal MUST be NEUTRAL or LONG only. Shorting a pumping micro-cap risks liquidation.`);
+  }
+  if (isMicroCap && isExtreme) {
+    warnings.push(`🚨 HARD BLOCK: Micro-cap with ${rangePct.toFixed(0)}% range. Extremely dangerous to short. NEUTRAL signal only.`);
+  }
   if (!degenMode) {
-    if (rangePct > 100) warnings.push(`EXTREME PUMP: 24H range ${rangePct.toFixed(0)}% — crime pump risk. Signal NEUTRAL unless clear setup.`);
+    if (rangePct > 100) warnings.push(`EXTREME PUMP: 24H range ${rangePct.toFixed(0)}% — crime pump risk. Signal NEUTRAL — DO NOT SHORT.`);
     else if (rangePct > 50) warnings.push(`HIGH VOLATILITY: 24H range ${rangePct.toFixed(0)}% — reduce confidence and size.`);
     if (atrPct > 10) warnings.push(`ATR is ${atrPct.toFixed(1)}% of price — extremely volatile. Max 2% position size.`);
+    if (atrPct > 15) warnings.push(`ATR > 15% of price — DO NOT TRADE. Signal NEUTRAL.`);
   } else {
-    if (rangePct > 100) warnings.push(`24H range ${rangePct.toFixed(0)}% — crime pump possible. Factor into SL placement.`);
+    if (isMicroCap && isPumping) warnings.push(`DEGEN WARNING: Micro-cap pump in progress — if you short, use MAX 1% size and very tight SL.`);
+    else if (rangePct > 100) warnings.push(`24H range ${rangePct.toFixed(0)}% — crime pump possible. Factor into SL placement.`);
   }
-  return warnings.length ? `WARNINGS:\n${warnings.map(w => `- ${w}`).join('\n')}` : '';
+  return warnings.length ? `⚠ WARNINGS — READ BEFORE GENERATING SIGNAL:\n${warnings.map(w => `- ${w}`).join('\n')}` : '';
 })()}
 
 KEY LEVELS:
@@ -3262,6 +3551,7 @@ document.querySelectorAll('.tf-btn').forEach(btn=>{
     await generateChartData();
     drawChart();
     updateIndicators();
+    gradeToken();
     savePageState();
   });
 });
@@ -3403,3 +3693,4 @@ initAuth().then(ok => {
 </script>
 </body>
 </html>
+
