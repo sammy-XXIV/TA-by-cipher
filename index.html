@@ -1086,10 +1086,12 @@ async function refreshWhales() {
   const empty  = document.getElementById('whaleEmpty');
   const results = document.getElementById('whaleResults');
 
-  btn.textContent = 'LOADING...'; btn.disabled = true;
-  status.textContent = 'Fetching whale activity...';
+  if (!results) return; // page not mounted yet
+
+  if (btn) { btn.textContent = 'LOADING...'; btn.disabled = true; }
+  if (status) status.textContent = 'Fetching whale activity...';
   results.innerHTML = '';
-  empty.style.display = 'none';
+  if (empty) empty.style.display = 'none';
   whaleData = [];
 
   try {
@@ -1328,16 +1330,17 @@ async function refreshWhales() {
     // Sort by time (most recent first)
     whaleData.sort((a,b) => b.time - a.time);
 
-    status.textContent = `${whaleData.length} whale signals detected`;
-    document.getElementById('whaleLastUpdate').textContent = 'Updated ' + new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+    if (status) status.textContent = `${whaleData.length} whale signals detected`;
+    const lastUpdate = document.getElementById('whaleLastUpdate');
+    if (lastUpdate) lastUpdate.textContent = 'Updated ' + new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
 
     renderWhales();
 
   } catch(e) {
-    status.textContent = `Error: ${e.message}`;
+    if (status) status.textContent = `Error: ${e.message}`;
   }
 
-  btn.textContent = 'REFRESH'; btn.disabled = false;
+  if (btn) { btn.textContent = 'REFRESH'; btn.disabled = false; }
 }
 
 function renderWhales() {
@@ -1351,11 +1354,11 @@ function renderWhales() {
   if (whaleFilter === 'alert') filtered = whaleData.filter(w => w.alert);
 
   if (!filtered.length) {
-    empty.style.display = 'block';
+    if (empty) empty.style.display = 'block';
     container.innerHTML = '';
     return;
   }
-  empty.style.display = 'none';
+  if (empty) empty.style.display = 'none';
 
   const sizeColor = { 'MEGA':'#e8003d', 'LARGE':'#e8a800', 'MEDIUM':'var(--accent2)' };
   const timeAgo = (ts) => {
@@ -4202,3 +4205,4 @@ initAuth().then(ok => {
 </script>
 </body>
 </html>
+
