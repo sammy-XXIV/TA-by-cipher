@@ -2665,6 +2665,7 @@ Respond ONLY in JSON:
     });
     if (!aiRes.ok) throw new Error('AI error');
     const aiData = await aiRes.json();
+    if(!aiData.content||!aiData.content[0]){throw new Error(aiData.error||'No response from AI');}
     let raw = aiData.content[0].text.trim().replace(/```json|```/g,'').trim();
     const s = JSON.parse(raw);
 
@@ -2936,6 +2937,7 @@ Respond ONLY in JSON:
     });
     if (!aiRes.ok) throw new Error('AI error');
     const aiData = await aiRes.json();
+    if(!aiData.content||!aiData.content[0]){throw new Error(aiData.error||'No response from AI');}
     let raw = aiData.content[0].text.trim().replace(/```json|```/g, '').trim();
     const s = JSON.parse(raw);
 
@@ -3412,6 +3414,7 @@ Respond ONLY with JSON (no markdown):
     const r=await fetch(`${SERVER}/analyze`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt})});
     if(!r.ok){const e=await r.json();throw new Error(e.error||'Server Error');}
     const data=await r.json();
+    if(!data.content||!data.content[0]){throw new Error(data.error||'No response from AI — check API key on server');}
     let raw=data.content[0].text.trim().replace(/```json|```/g,'').trim();
     const a=JSON.parse(raw);
 
