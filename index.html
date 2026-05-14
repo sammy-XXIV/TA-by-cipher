@@ -294,6 +294,61 @@
   .sammy span { color:var(--accent); text-shadow:var(--glow); }
 
   .matrix { position:fixed; bottom:0; right:0; width:45px; height:80px; pointer-events:none; opacity:0.05; font-size:9px; color:var(--accent); overflow:hidden; z-index:50; }
+
+  /* ── MOBILE RESPONSIVE ──────────────────────────────────────────────────────── */
+  @media (max-width: 480px) {
+
+    /* Header: shrink logo text, compress right side */
+    .logo-text { font-size: 13px; letter-spacing: 3px; }
+    .logo-hex  { width: 22px; height: 22px; }
+
+    .header-right { gap: 5px; }
+    .dot-pill     { display: none; }
+
+    /* Make SCAN / WHALES buttons icon-only on very narrow screens */
+    #scanNavBtn  { padding: 4px 8px; font-size: 9px; letter-spacing: 0.5px; }
+    #whaleNavBtn { padding: 4px 8px; font-size: 9px; letter-spacing: 0.5px; }
+
+    /* Chart topbar: stack c-info and tf-row vertically */
+    .chart-topbar {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 5px;
+      padding: 6px 8px;
+    }
+    .c-info { width: 100%; }
+    .c-sym  { font-size: 12px; letter-spacing: 1px; }
+    .c-price { font-size: 12px; }
+
+    /* TF buttons: allow horizontal scroll so they never wrap or overflow */
+    .tf-row {
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .tf-row::-webkit-scrollbar { display: none; }
+    .tf-btns { flex-wrap: nowrap; }
+    .tf-btn { font-size: 8px; padding: 4px 6px; }
+
+    /* Run buttons: tighten margins so they fit without scrolling */
+    .run-btn {
+      margin: 8px 10px;
+      padding: 10px 8px;
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      width: calc(100% - 20px);
+    }
+
+    /* MEXC ticker search row: shrink FETCH button */
+    #mexcFetchBtn { padding: 8px 10px; font-size: 9px; }
+
+    /* Home bar: shrink refresh button */
+    #refreshPriceBtn { font-size: 10px; padding: 4px 8px; }
+
+    /* Indicator row values: slightly smaller so they fit 2-col */
+    .ind-val { font-size: 11px; }
+  }
 </style>
 </head>
 <body>
