@@ -281,7 +281,7 @@
 <script>
 const SUPABASE_URL = 'https://zttdlnavawepvhbtldgq.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_PiRo_l11XVyrqnhmn5NldQ_Ju0ItrBV';
-const NOTIFY_BOT_TOKEN = '8685607507:AAHSQ-8hz9ivTNaNmYTKy8Gl-l-ZQaNO9YQ';
+const SERVER = 'https://cipher-backend-production-f497.up.railway.app';
 const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -381,16 +381,17 @@ async function verifyTelegram() {
     // Delete used code
     await sb.from('pending_verifications').delete().eq('code', code);
 
-    // Send welcome message via bot
-    await fetch(`https://api.telegram.org/bot${NOTIFY_BOT_TOKEN}/sendMessage`, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({
-        chat_id: data.chat_id,
-        text: `✅ <b>CIPHER NOTIFICATIONS LINKED!</b>\n\nYour account is now connected.\n\nYou'll receive alerts for:\n• 📊 Analysis results\n• 🎯 Entry zone hits\n• ❌ Setup invalidations\n• ⏱ Signal expirations\n\n<i>⚠️ NOT FINANCIAL ADVICE</i>`,
-        parse_mode: 'HTML'
-      })
-    });
+    // Send welcome message via backend (bot token lives server-side)
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) {
+      await fetch(`${SERVER}/notify`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json', 'Authorization': `Bearer ${session.access_token}`},
+        body: JSON.stringify({
+          text: `✅ <b>CIPHER NOTIFICATIONS LINKED!</b>\n\nYour account is now connected.\n\nYou'll receive alerts for:\n• 📊 Analysis results\n• 🎯 Entry zone hits\n• ❌ Setup invalidations\n• ⏱ Signal expirations\n\n<i>⚠️ NOT FINANCIAL ADVICE</i>`
+        })
+      });
+    }
 
     showMsg('tgSuccess', '✓ Telegram linked successfully!');
     showMsg('tgError', '');
