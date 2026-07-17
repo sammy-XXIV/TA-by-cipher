@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>CIPHER — Access</title>
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg: #020408;
@@ -26,7 +26,7 @@
   body {
     background: var(--bg);
     color: var(--text);
-    font-family: 'Share Tech Mono', monospace;
+    font-family: 'Space Grotesk', sans-serif;
     min-height: 100vh;
     display: flex;
     flex-direction: column;
@@ -86,7 +86,7 @@
   }
 
   .logo-sub {
-    font-size: 9px;
+    font-size: 11px;
     color: var(--text2);
     letter-spacing: 3px;
     margin-top: 6px;
@@ -95,7 +95,7 @@
   /* Card */
   .card {
     background: var(--bg2);
-    border: 1px solid var(--border2);
+    border: 2px solid var(--border2);
     padding: 28px 24px;
     position: relative;
   }
@@ -119,7 +119,8 @@
     flex: 1;
     padding: 10px;
     text-align: center;
-    font-size: 11px;
+    font-size: 13px;
+    font-weight: 600;
     letter-spacing: 2px;
     color: var(--text3);
     cursor: pointer;
@@ -127,7 +128,7 @@
     transition: all 0.2s;
     background: none;
     border: none;
-    font-family: 'Share Tech Mono', monospace;
+    font-family: 'Space Grotesk', sans-serif;
   }
 
   .tab.active {
@@ -145,7 +146,8 @@
 
   .field label {
     display: block;
-    font-size: 8px;
+    font-size: 11px;
+    font-weight: 600;
     letter-spacing: 2px;
     color: var(--text2);
     margin-bottom: 6px;
@@ -156,8 +158,8 @@
     background: #020408;
     border: 1px solid var(--border2);
     color: var(--text);
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 13px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 15px;
     padding: 10px 12px;
     outline: none;
     transition: border-color 0.2s;
@@ -194,7 +196,7 @@
     background: #ff3c6e15;
     border: 1px solid #ff3c6e40;
     color: var(--accent3);
-    font-size: 9px;
+    font-size: 12px;
     padding: 8px 10px;
     margin-top: 12px;
     letter-spacing: 1px;
@@ -205,7 +207,7 @@
     background: #00ff9d15;
     border: 1px solid #00ff9d40;
     color: var(--accent);
-    font-size: 9px;
+    font-size: 12px;
     padding: 8px 10px;
     margin-top: 12px;
     letter-spacing: 1px;
@@ -214,7 +216,7 @@
 
   .divider {
     text-align: center;
-    font-size: 8px;
+    font-size: 10px;
     color: var(--text3);
     letter-spacing: 2px;
     margin: 16px 0;
@@ -240,7 +242,7 @@
   }
 
   .forgot a {
-    font-size: 8px;
+    font-size: 11px;
     color: var(--text2);
     letter-spacing: 1px;
     cursor: pointer;
@@ -249,7 +251,7 @@
 
   .footer-note {
     text-align: center;
-    font-size: 8px;
+    font-size: 10px;
     color: var(--text3);
     letter-spacing: 1px;
     margin-top: 20px;
@@ -266,23 +268,6 @@
     color: var(--accent);
     overflow: hidden;
     z-index: 0;
-  }
-
-  /* Scan line */
-  .scanline {
-    position: fixed;
-    top: 0; left: 0; right: 0;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, var(--accent2), transparent);
-    opacity: 0.3;
-    animation: scan 4s linear infinite;
-    pointer-events: none;
-    z-index: 100;
-  }
-
-  @keyframes scan {
-    0% { top: 0; }
-    100% { top: 100vh; }
   }
 
   .password-toggle {
@@ -305,7 +290,6 @@
 </head>
 <body>
 
-<div class="scanline"></div>
 <div class="matrix" id="matrix"></div>
 
 <div class="container">
@@ -367,7 +351,7 @@
 
     <!-- RESET FORM -->
     <div class="form" id="form-reset">
-      <div style="font-size:9px;color:var(--text2);letter-spacing:1px;margin-bottom:16px;line-height:1.6">
+      <div style="font-size:12px;color:var(--text2);letter-spacing:0.5px;margin-bottom:16px;line-height:1.6">
         Enter your email and we'll send you a password reset link.
       </div>
       <div class="field">
@@ -378,7 +362,7 @@
       <div class="error-msg" id="reset-error"></div>
       <div class="success-msg" id="reset-success"></div>
       <div style="text-align:center;margin-top:12px;">
-        <a onclick="switchTab('login')" style="font-size:8px;color:var(--text2);cursor:pointer;letter-spacing:1px;">← Back to login</a>
+        <a onclick="switchTab('login')" style="font-size:11px;color:var(--text2);cursor:pointer;letter-spacing:1px;">← Back to login</a>
       </div>
     </div>
   </div>
