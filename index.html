@@ -24,7 +24,6 @@
     --text3: #1e3d55;
     --glow: 0 0 12px #00e87a33;
     --glow2: 0 0 12px #00b8e633;
-    --scan: rgba(0,232,122,0.018);
   }
 
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -37,11 +36,6 @@
     width: 100%;
     overflow: hidden;
     position: fixed;
-  }
-
-  body::before {
-    content:''; position:fixed; inset:0; pointer-events:none; z-index:9999;
-    background: repeating-linear-gradient(0deg,transparent,transparent 2px,var(--scan) 2px,var(--scan) 4px);
   }
 
   /* HEADER */
