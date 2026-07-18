@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>CIPHER</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&family=Orbitron:wght@700;900&family=DM+Sans:wght@400;500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&family=Orbitron:wght@700;900&family=DM+Sans:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
   :root {
     --bg: #020408;
@@ -94,7 +94,7 @@
     display:flex; align-items:center; gap:10px; padding:10px 14px;
     border-bottom:1px solid var(--border); background:var(--panel); flex-shrink:0;
   }
-  .mkt-count { font-size:9px; color:var(--text3); letter-spacing:2px; white-space:nowrap; }
+  .mkt-count { font-size:10px; color:var(--text3); letter-spacing:2px; white-space:nowrap; font-family:'Space Grotesk',sans-serif; }
   .mkt-count b { color:var(--accent); font-weight:normal; }
 
   .search-box {
@@ -106,38 +106,44 @@
   .search-box span { color:var(--text3); font-size:12px; margin-right:6px; }
   .search-box input {
     flex:1; background:none; border:none; outline:none;
-    color:var(--text); font-family:'Share Tech Mono',monospace;
-    font-size:11px; padding:8px 0; letter-spacing:1px;
+    color:var(--text); font-family:'Space Grotesk',sans-serif;
+    font-size:13px; padding:8px 0; letter-spacing:0.5px;
   }
   .search-box input::placeholder { color:var(--text3); }
 
-  .token-list { flex:1; overflow-y:scroll; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; min-height:0; touch-action:pan-y; }
+  .token-list {
+    flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch;
+    overscroll-behavior:contain; min-height:0; touch-action:pan-y;
+    transform:translateZ(0); /* own compositor layer: scrolling never repaints the page behind it */
+  }
   .token-list::-webkit-scrollbar { display:none; }
 
   .token-row {
-    display:flex; align-items:center; padding:11px 16px;
+    display:flex; align-items:center; padding:12px 16px;
     border-bottom:1px solid var(--border); cursor:pointer;
-    transition:background 0.15s; gap:12px;
+    gap:12px;
+    content-visibility:auto; contain-intrinsic-size:auto 59px; /* off-screen rows skip layout+paint */
   }
-  .token-row:active { background:#00e87a06; }
+  .token-row:active { background:#00e87a08; }
+  @media (hover:hover) { .token-row:hover { background:#071120; } }
 
-  .t-rank { font-size:9px; color:var(--text3); width:20px; text-align:right; flex-shrink:0; font-family:'DM Sans',sans-serif; }
+  .t-rank { font-size:10px; color:#16324a; width:22px; text-align:right; flex-shrink:0; font-family:'Space Grotesk',sans-serif; }
   .t-icon {
     width:34px; height:34px; border-radius:4px;
-    background:var(--bg3); border:1px solid var(--border2);
+    background:#040b13; border:1px solid var(--border);
     display:flex; align-items:center; justify-content:center;
-    font-family:'Orbitron',sans-serif; font-size:7px; font-weight:700;
-    color:var(--text2); flex-shrink:0; letter-spacing:0.5px;
+    font-family:'Space Grotesk',sans-serif; font-size:9px; font-weight:700;
+    color:#39587a; flex-shrink:0; letter-spacing:0.5px;
   }
   .t-info { flex:1; min-width:0; }
-  .t-sym { font-family:'Orbitron',sans-serif; font-size:12px; font-weight:700; color:var(--text); letter-spacing:1.5px; }
-  .t-name { font-size:9px; color:var(--text3); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-family:'DM Sans',sans-serif; }
+  .t-sym { font-family:'Space Grotesk',sans-serif; font-size:14px; font-weight:700; color:#f2f9ff; letter-spacing:0.8px; }
+  .t-name { font-size:10px; color:#3b5c7d; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-family:'Space Grotesk',sans-serif; }
   .t-right { display:flex; flex-direction:column; align-items:flex-end; gap:4px; flex-shrink:0; }
-  .t-price { font-family:'Rajdhani',sans-serif; font-size:14px; font-weight:600; color:var(--text); }
-  .t-chg { font-size:9px; padding:1px 6px; font-family:'DM Sans',sans-serif; font-weight:500; }
-  .t-chg.up   { background:#00e87a10; color:var(--accent);  border:1px solid #00e87a25; }
-  .t-chg.down { background:#e8003d10; color:var(--accent3); border:1px solid #e8003d25; }
-  .t-arrow { color:var(--text3); font-size:14px; flex-shrink:0; opacity:0.4; }
+  .t-price { font-family:'Space Grotesk',sans-serif; font-size:15px; font-weight:600; color:#f2f9ff; font-variant-numeric:tabular-nums; }
+  .t-chg { font-size:10px; padding:1px 6px; font-family:'Space Grotesk',sans-serif; font-weight:600; font-variant-numeric:tabular-nums; }
+  .t-chg.up   { background:#00e87a12; color:var(--accent);  border:1px solid #00e87a2a; }
+  .t-chg.down { background:#e8003d12; color:var(--accent3); border:1px solid #e8003d2a; }
+  .t-arrow { color:var(--text3); font-size:14px; flex-shrink:0; opacity:0.35; }
 
   /* DETAIL PAGE */
   .detail-tabs {
@@ -198,7 +204,17 @@
   .page.hidden-left  { transform:translateX(-20%); opacity:0; pointer-events:none; }
   .page.visible      { transform:translateX(0); opacity:1; pointer-events:all; }
 
-  .chart-area { flex:1; position:relative; overflow:hidden; min-height:180px; }
+  .chart-area {
+    flex:1; position:relative; overflow:hidden; min-height:180px;
+    margin:10px 12px;
+    background:#010306;
+    border:3px solid #16304a;
+    box-shadow:
+      0 0 0 3px #05090f,
+      0 0 0 4px #24425f,
+      inset 0 0 28px rgba(0,0,0,0.75),
+      inset 0 0 3px rgba(0,232,122,0.12);
+  }
   #chartCanvas { width:100%; height:100%; display:block; }
   .chart-tags { position:absolute; top:6px; left:8px; display:flex; flex-direction:column; gap:3px; pointer-events:none; }
   .ctag { font-size:7px; padding:1px 5px; border:1px solid; letter-spacing:1px; }
@@ -223,15 +239,82 @@
   .ai-badge { font-size:8px; padding:2px 6px; background:#00c9ff15; border:1px solid #00c9ff30; color:var(--accent2); letter-spacing:1px; animation:blink 2s step-end infinite; }
   @keyframes blink { 0%,100%{opacity:1}50%{opacity:0.3} }
 
-  .pw-wrap { padding:10px 14px; border-bottom:1px solid var(--border); flex-shrink:0; }
-  .pw-lbl { font-size:8px; color:var(--text3); letter-spacing:1px; margin-bottom:5px; }
-  .pw-input {
-    width:100%; background:var(--bg3); border:1px solid var(--border2);
-    color:var(--text2); font-family:'Share Tech Mono',monospace;
-    font-size:14px; padding:9px 12px; outline:none; letter-spacing:3px;
-    -webkit-text-security:disc; transition:border-color 0.2s;
+  /* ── SIGNAL CARD ─────────────────────────────────── */
+  .sig-card {
+    width:calc(100% - 28px); max-width:420px;
+    margin:12px auto 0;
+    background:var(--panel);
+    border:2px solid var(--border2);
+    position:relative;
+    font-family:'Space Grotesk',sans-serif;
   }
-  .pw-input:focus { border-color:var(--accent2); }
+  .sig-card::before {
+    content:''; position:absolute; top:-2px; left:-2px; right:-2px;
+    height:3px; background:var(--dir);
+  }
+  .sig-card.long  { --dir:var(--accent);  --dir-soft:#00e87a18; }
+  .sig-card.short { --dir:var(--accent3); --dir-soft:#e8003d18; }
+  .sig-card.neut  { --dir:var(--accent4); --dir-soft:#e8a80018; }
+
+  .sc-head {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:11px 16px; border-bottom:1px solid var(--border2);
+  }
+  .sc-brand { font-family:'Orbitron',sans-serif; font-size:11px; font-weight:900; letter-spacing:4px; color:var(--accent); }
+  .sc-time  { font-size:10px; color:var(--text3); letter-spacing:1px; }
+
+  .sc-main { display:flex; align-items:center; justify-content:space-between; padding:15px 16px; }
+  .sc-sym  { font-size:24px; font-weight:700; color:#f2f9ff; letter-spacing:1px; }
+  .sc-tf   { font-size:11px; color:var(--text2); margin-top:2px; letter-spacing:1.5px; }
+  .sc-dir  { text-align:right; }
+  .sc-dir-badge {
+    display:inline-block; font-family:'Orbitron',sans-serif;
+    font-size:14px; font-weight:900; letter-spacing:3px;
+    color:var(--dir); background:var(--dir-soft); border:2px solid var(--dir);
+    padding:6px 13px;
+  }
+  .sc-conf { font-size:11px; color:var(--text2); margin-top:6px; letter-spacing:1px; }
+  .sc-conf b { color:var(--text); font-weight:600; }
+
+  .sc-levels { display:flex; gap:16px; padding:2px 16px 14px; }
+  .rail { width:14px; position:relative; flex-shrink:0; }
+  .rail::before {
+    content:''; position:absolute; left:50%; top:6px; bottom:6px;
+    width:2px; margin-left:-1px; background:var(--border2);
+  }
+  .rail-dot {
+    position:absolute; left:50%; width:10px; height:10px;
+    transform:translate(-50%,-50%); border:2px solid; background:var(--panel);
+  }
+  .rail-dot.target { border-color:var(--accent); }
+  .rail-dot.entry  { border-color:#f2f9ff; background:#f2f9ff; }
+  .rail-dot.stop   { border-color:var(--accent3); }
+
+  .lv-rows { flex:1; display:flex; flex-direction:column; }
+  .lv-row  { flex:1; display:flex; align-items:center; justify-content:space-between; padding:8px 0; }
+  .lv-row + .lv-row { border-top:1px solid #0a1a2c; }
+  .lv-lbl { font-size:11px; letter-spacing:2px; color:var(--text2); }
+  .lv-val { font-size:15px; font-weight:600; font-variant-numeric:tabular-nums; color:#f2f9ff; }
+  .lv-val.g { color:var(--accent); }
+  .lv-val.r { color:var(--accent3); }
+  .lv-sub { font-size:10px; color:var(--text3); margin-left:8px; font-variant-numeric:tabular-nums; }
+
+  .sc-stats { display:grid; grid-template-columns:1fr 1fr 1fr; border-top:1px solid var(--border2); }
+  .st-cell { padding:10px 8px; text-align:center; border-right:1px solid var(--border2); }
+  .st-cell:last-child { border-right:none; }
+  .st-lbl { font-size:10px; letter-spacing:2px; color:var(--text3); margin-bottom:3px; }
+  .st-val { font-size:14px; font-weight:700; font-variant-numeric:tabular-nums; color:var(--text); }
+  .st-val.g { color:var(--accent); }
+  .st-val.y { color:var(--accent4); }
+  .st-val.r { color:var(--accent3); }
+
+  .sc-reason { padding:12px 16px; border-top:1px solid var(--border2); font-size:12px; line-height:1.55; color:var(--text2); }
+  .sc-foot {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:9px 16px; border-top:1px solid var(--border2); background:var(--bg2);
+  }
+  .sc-url, .sc-nfa { font-size:10px; letter-spacing:1.5px; color:var(--text3); }
+
 
   .stats-g { display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--border); margin:10px 14px; flex-shrink:0; }
   .stat-c { background:var(--bg3); padding:7px 10px; }
@@ -288,6 +371,39 @@
   .sammy span { color:var(--accent); text-shadow:var(--glow); }
 
   .matrix { position:fixed; bottom:0; right:0; width:45px; height:80px; pointer-events:none; opacity:0.05; font-size:9px; color:var(--accent); overflow:hidden; z-index:50; }
+
+  /* ── DESKTOP: sidebar + detail two-pane layout ───────────────────────────────── */
+  #deskEmpty { display:none; }
+  #deskEmpty .de-hex { font-size:40px; color:var(--accent); opacity:0.25; }
+  #deskEmpty .de-txt { font-family:'Space Grotesk',sans-serif; font-size:12px; letter-spacing:3px; }
+
+  @media (min-width: 900px) {
+    .app { flex-direction:row; }
+
+    /* Token list becomes a fixed sidebar, always visible */
+    #homePage {
+      position:relative; inset:auto;
+      transform:none !important; opacity:1 !important; pointer-events:auto !important;
+      width:400px; flex-shrink:0;
+      border-right:1px solid var(--border2);
+      transition:none;
+    }
+
+    /* Detail / scanner / whale pages live in the right pane */
+    #detailPage, #scannerPage, #whalePage { left:400px; }
+
+    /* Sidebar is always there, so back-to-home is redundant — but keep the
+       button when it returns to scanner/whales, which live in the right pane */
+    #backBtn.show { display:none; }
+    #backBtn.show.ctx { display:flex; }
+
+    /* Empty state behind the right-pane pages */
+    #deskEmpty {
+      display:flex; position:absolute; left:400px; right:0; top:0; bottom:0;
+      flex-direction:column; align-items:center; justify-content:center; gap:14px;
+      color:var(--text3); z-index:0;
+    }
+  }
 
   /* ── MOBILE RESPONSIVE ──────────────────────────────────────────────────────── */
   @media (max-width: 480px) {
@@ -365,6 +481,12 @@
 </header>
 
 <div class="app">
+
+  <!-- Desktop-only empty state for the right pane -->
+  <div id="deskEmpty">
+    <div class="de-hex">⬡</div>
+    <div class="de-txt">SELECT A MARKET</div>
+  </div>
 
   <!-- HOME PAGE -->
   <div class="page visible" id="homePage">
@@ -474,12 +596,6 @@
             </div>
           </div>
         </div>
-        <div class="pw-wrap">
-          <div class="pw-lbl">// ACCESS PASSWORD</div>
-          <input type="text" class="pw-input" id="pwInput" placeholder="••••••••"
-            autocomplete="off" autocorrect="off" spellcheck="false"
-            onkeydown="if(event.key==='Enter')runAnalysis()">
-        </div>
         <!-- TOKEN GRADE PANEL -->
         <div id="gradePanel" style="display:none;position:relative;margin:8px 14px 0;border:1px solid var(--border2);background:var(--bg3);animation:fadeUp 0.3s ease;">
           <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;">
@@ -502,8 +618,6 @@
           <div class="stat-c"><div class="stat-l">RESISTANCE</div><div class="stat-v" id="sRes">—</div></div>
         </div>
         <button class="run-btn" id="runBtn" onclick="runAnalysis()">RUN ANALYSIS</button>
-        <button class="run-btn" id="scalp-btn" onclick="runScalpMode()" style="margin-top:0;margin-bottom:0;border-color:var(--accent4);color:var(--accent4);background:#e8a80008;letter-spacing:3px;">⚡ SCALP — 5M</button>
-        <button class="run-btn" id="manip-btn" onclick="runManipMode()" style="margin-top:4px;margin-bottom:10px;border-color:#a855f7;color:#a855f7;background:#a855f708;letter-spacing:3px;">⚡ MANIPULATION — 5M</button>
         <div class="out-area" id="outArea">
           <div class="empty">
             <div class="empty-icon">◈ ◈ ◈</div>
@@ -531,40 +645,40 @@
   <!-- SCANNER PAGE -->
   <div class="page hidden-right" id="scannerPage">
     <!-- Scan button + status -->
-    <div style="padding:10px 14px;border-bottom:1px solid var(--border);background:var(--bg3);flex-shrink:0;display:flex;align-items:center;gap:10px;">
-      <button onclick="runMexcScan()" id="scanBtn" style="background:var(--accent);color:#020408;border:none;font-family:'Orbitron',monospace;font-size:10px;font-weight:700;padding:8px 16px;cursor:pointer;letter-spacing:2px;flex-shrink:0;">SCAN NOW</button>
-      <div id="scanStatus" style="font-size:9px;color:var(--text3);letter-spacing:1px;">Tap SCAN NOW to find top opportunities on MEXC</div>
+    <div style="padding:14px 16px;border-bottom:1px solid var(--border);background:var(--bg3);flex-shrink:0;display:flex;align-items:center;gap:14px;">
+      <button onclick="runMexcScan()" id="scanBtn" style="background:var(--accent);color:#020408;border:none;font-family:'Orbitron',monospace;font-size:10px;font-weight:700;padding:9px 18px;cursor:pointer;letter-spacing:2px;flex-shrink:0;">SCAN NOW</button>
+      <div id="scanStatus" style="font-size:11px;color:var(--text3);letter-spacing:0.5px;font-family:'Space Grotesk',sans-serif;">Scan MEXC for top opportunities</div>
     </div>
     <!-- Results — sectioned -->
     <div id="scanResults" style="overflow-y:auto;flex:1;">
       <div class="empty" id="scanEmpty">
-        <div class="empty-icon">⚡</div>
-        Tap SCAN NOW to find<br>top trading opportunities
+        <div class="empty-icon">◈</div>
+        Run a scan to find<br>top trading opportunities
       </div>
     </div>
   </div>
 
   <!-- WHALE MONITOR PAGE -->
   <div class="page hidden-right" id="whalePage">
-    <div style="padding:10px 14px;border-bottom:1px solid var(--border);background:var(--bg3);flex-shrink:0;display:flex;align-items:center;gap:10px;">
-      <button onclick="refreshWhales()" id="whaleRefreshBtn" style="background:var(--accent2);color:#020408;border:none;font-family:'Orbitron',monospace;font-size:10px;font-weight:700;padding:8px 14px;cursor:pointer;letter-spacing:2px;flex-shrink:0;">REFRESH</button>
-      <div id="whaleStatus" style="font-size:9px;color:var(--text3);letter-spacing:1px;">Live whale activity from multiple sources</div>
-      <div style="margin-left:auto;font-size:8px;color:var(--text3);" id="whaleLastUpdate"></div>
+    <div style="padding:14px 16px;border-bottom:1px solid var(--border);background:var(--bg3);flex-shrink:0;display:flex;align-items:center;gap:14px;">
+      <button onclick="refreshWhales()" id="whaleRefreshBtn" style="background:var(--accent2);color:#020408;border:none;font-family:'Orbitron',monospace;font-size:10px;font-weight:700;padding:9px 16px;cursor:pointer;letter-spacing:2px;flex-shrink:0;">REFRESH</button>
+      <div id="whaleStatus" style="font-size:11px;color:var(--text3);letter-spacing:0.5px;font-family:'Space Grotesk',sans-serif;">Live whale activity from multiple sources</div>
+      <div style="margin-left:auto;font-size:10px;color:var(--text3);font-family:'Space Grotesk',sans-serif;" id="whaleLastUpdate"></div>
     </div>
 
     <!-- Filter tabs -->
     <div style="display:flex;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0;">
-      <button class="whale-tab active" id="wtab-all" onclick="setWhaleFilter('all')" style="flex:1;padding:8px;font-size:9px;letter-spacing:1px;color:var(--accent2);background:none;border:none;border-bottom:2px solid var(--accent2);font-family:'DM Sans',sans-serif;font-weight:600;cursor:pointer;text-transform:uppercase;">ALL</button>
-      <button class="whale-tab" id="wtab-buy" onclick="setWhaleFilter('buy')" style="flex:1;padding:8px;font-size:9px;letter-spacing:1px;color:var(--text3);background:none;border:none;border-bottom:2px solid transparent;font-family:'DM Sans',sans-serif;font-weight:600;cursor:pointer;text-transform:uppercase;">BUYS</button>
-      <button class="whale-tab" id="wtab-sell" onclick="setWhaleFilter('sell')" style="flex:1;padding:8px;font-size:9px;letter-spacing:1px;color:var(--text3);background:none;border:none;border-bottom:2px solid transparent;font-family:'DM Sans',sans-serif;font-weight:600;cursor:pointer;text-transform:uppercase;">SELLS</button>
-      <button class="whale-tab" id="wtab-dex" onclick="setWhaleFilter('dex')" style="flex:1;padding:8px;font-size:9px;letter-spacing:1px;color:var(--text3);background:none;border:none;border-bottom:2px solid transparent;font-family:'DM Sans',sans-serif;font-weight:600;cursor:pointer;text-transform:uppercase;">DEX 🔥</button>
-      <button class="whale-tab" id="wtab-alert" onclick="setWhaleFilter('alert')" style="flex:1;padding:8px;font-size:9px;letter-spacing:1px;color:var(--text3);background:none;border:none;border-bottom:2px solid transparent;font-family:'DM Sans',sans-serif;font-weight:600;cursor:pointer;text-transform:uppercase;">ALERTS</button>
+      <button class="whale-tab active" id="wtab-all" onclick="setWhaleFilter('all')" style="flex:1;padding:11px;font-size:11px;letter-spacing:1px;color:var(--accent2);background:none;border:none;border-bottom:2px solid var(--accent2);font-family:'Space Grotesk',sans-serif;font-weight:600;cursor:pointer;text-transform:uppercase;">ALL</button>
+      <button class="whale-tab" id="wtab-buy" onclick="setWhaleFilter('buy')" style="flex:1;padding:11px;font-size:11px;letter-spacing:1px;color:var(--text3);background:none;border:none;border-bottom:2px solid transparent;font-family:'Space Grotesk',sans-serif;font-weight:600;cursor:pointer;text-transform:uppercase;">BUYS</button>
+      <button class="whale-tab" id="wtab-sell" onclick="setWhaleFilter('sell')" style="flex:1;padding:11px;font-size:11px;letter-spacing:1px;color:var(--text3);background:none;border:none;border-bottom:2px solid transparent;font-family:'Space Grotesk',sans-serif;font-weight:600;cursor:pointer;text-transform:uppercase;">SELLS</button>
+      <button class="whale-tab" id="wtab-dex" onclick="setWhaleFilter('dex')" style="flex:1;padding:11px;font-size:11px;letter-spacing:1px;color:var(--text3);background:none;border:none;border-bottom:2px solid transparent;font-family:'Space Grotesk',sans-serif;font-weight:600;cursor:pointer;text-transform:uppercase;">DEX</button>
+      <button class="whale-tab" id="wtab-alert" onclick="setWhaleFilter('alert')" style="flex:1;padding:11px;font-size:11px;letter-spacing:1px;color:var(--text3);background:none;border:none;border-bottom:2px solid transparent;font-family:'Space Grotesk',sans-serif;font-weight:600;cursor:pointer;text-transform:uppercase;">ALERTS</button>
     </div>
 
     <div id="whaleResults" style="overflow-y:scroll;-webkit-overflow-scrolling:touch;flex:1;min-height:0;">
       <div class="empty" id="whaleEmpty">
-        <div class="empty-icon" style="font-size:28px;">🐋</div>
-        Tap REFRESH to load<br>whale activity
+        <div class="empty-icon">◈</div>
+        Refresh to load<br>whale activity
       </div>
     </div>
   </div>
@@ -579,7 +693,7 @@
 const SERVER = 'https://cipher-backend-production-f497.up.railway.app';
 const SUPABASE_URL = 'https://zttdlnavawepvhbtldgq.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_PiRo_l11XVyrqnhmn5NldQ_Ju0ItrBV';
-const NOTIFY_BOT_URL   = 'https://cipher-notification-bot.onrender.com';
+const NOTIFY_BOT_URL   = 'https://cipher-notification-bot-production.up.railway.app';
 const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -634,35 +748,41 @@ function goHome() {
   document.getElementById('detailPage').className = 'page hidden-right';
   document.getElementById('scannerPage').className = 'page hidden-right';
   if (document.getElementById('whalePage')) document.getElementById('whalePage').className = 'page hidden-right';
-  document.getElementById('backBtn').classList.remove('show');
+  const hb = document.getElementById('backBtn');
+  hb.classList.remove('show', 'ctx');
+  hb.textContent = '← BACK';
+  hb.onclick = goHome;
   const gp = document.getElementById('gradePanel');
   if (gp) gp.style.display = 'none';
   const scanBtn = document.getElementById('scanNavBtn');
   if (scanBtn) { scanBtn.textContent = 'SCAN'; scanBtn.onclick = showScannerPage; }
   const whaleBtn = document.getElementById('whaleNavBtn');
   if (whaleBtn) { whaleBtn.textContent = 'WHALES'; whaleBtn.onclick = showWhalePage; }
-  sessionStorage.removeItem('cipher_active_token');
+  savePageState('home');
 }
 
-async function goDetail(id) {
+async function goDetail(id, origin = 'home') {
   activeToken = TOKENS.find(t => t.id === id);
   if (!activeToken) return;
+  detailOrigin = origin;
   zoomLevel = 1;
   tooltipCandle = null;
   document.getElementById('homePage').className = 'page hidden-left';
+  document.getElementById('scannerPage').className = 'page hidden-right';
+  document.getElementById('whalePage').className = 'page hidden-right';
   document.getElementById('detailPage').className = 'page visible';
-  document.getElementById('backBtn').classList.add('show');
+  const bb = document.getElementById('backBtn');
+  bb.classList.add('show');
+  bb.classList.toggle('ctx', origin !== 'home');
+  bb.textContent = origin === 'scanner' ? '← SCANNER' : origin === 'whale' ? '← WHALES' : '← BACK';
+  bb.onclick = origin === 'scanner' ? showScannerPage : origin === 'whale' ? showWhalePage : goHome;
   updateChartHeader();
   showTab('chart');
   document.getElementById('statsGrid').style.display = 'none';
 
   // Disable analysis buttons until chart is ready
   const runBtn   = document.getElementById('runBtn');
-  const scalpBtn = document.getElementById('scalp-btn');
-  const manipBtn = document.getElementById('manip-btn');
   if (runBtn)   { runBtn.disabled = true;   runBtn.textContent = 'LOADING CHART...'; }
-  if (scalpBtn) { scalpBtn.disabled = true; scalpBtn.textContent = 'LOADING...'; }
-  if (manipBtn) { manipBtn.disabled = true; manipBtn.textContent = 'LOADING...'; }
 
   document.getElementById('outArea').innerHTML = `
     <div class="empty">
@@ -675,19 +795,11 @@ async function goDetail(id) {
   drawChart();
   updateIndicators();
   gradeToken();
-  savePageState();
+  savePageState('detail');
   const isSimulated = !chartData.length || chartData[0]?.vol === 0;
   if (runBtn) {
     runBtn.disabled = false;
     runBtn.textContent = isSimulated ? 'RUN ANALYSIS (simulated data)' : 'RUN ANALYSIS';
-  }
-  if (scalpBtn) {
-    scalpBtn.disabled = false;
-    scalpBtn.textContent = '⚡ SCALP — 5M';
-  }
-  if (manipBtn) {
-    manipBtn.disabled = false;
-    manipBtn.textContent = '⚡ MANIPULATION — 5M';
   }
 
   document.getElementById('outArea').innerHTML = `
@@ -724,6 +836,8 @@ function showTab(tab) {
   document.getElementById('dc-' + tab).classList.add('active');
   if (tab === 'chart' && chartData.length) setTimeout(drawChart, 50);
   if (tab === 'history') renderHistory();
+  currentDetailTab = tab;
+  savePageState();
 }
 
 function zoomChart(dir) {
@@ -1112,11 +1226,14 @@ function showWhalePage() {
   document.getElementById('detailPage').className = 'page hidden-right';
   document.getElementById('scannerPage').className = 'page hidden-right';
   document.getElementById('whalePage').className = 'page visible';
-  document.getElementById('backBtn').classList.add('show');
-  document.getElementById('backBtn').onclick = goHome;
+  const bb = document.getElementById('backBtn');
+  bb.classList.add('show'); bb.classList.remove('ctx');
+  bb.textContent = '← BACK';
+  bb.onclick = goHome;
   const btn = document.getElementById('whaleNavBtn');
   if (btn) { btn.textContent = 'CLOSE'; btn.onclick = goHome; }
   if (!whaleData.length) refreshWhales();
+  savePageState('whale');
 }
 
 function setWhaleFilter(filter) {
@@ -1427,28 +1544,28 @@ function renderWhales() {
 
     return `
       <div onclick="${w.isDex && w.dexUrl ? `window.open('${w.dexUrl}','_blank')` : `loadWhaleToken('${w.sym}')`}"
-        style="padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;gap:10px;align-items:flex-start;transition:background 0.2s;"
-        onmouseover="this.style.background='#ffffff06'" onmouseout="this.style.background='transparent'">
+        style="padding:14px 16px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;gap:12px;align-items:flex-start;font-family:'Space Grotesk',sans-serif;"
+        onmouseover="this.style.background='#071120'" onmouseout="this.style.background='transparent'">
 
         <div style="width:32px;height:32px;border-radius:4px;background:${isBuy?'#00e87a15':'#e8003d15'};border:1px solid ${isBuy?'#00e87a30':'#e8003d30'};display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px;color:${color};">${arrow}</div>
 
         <div style="flex:1;min-width:0;">
-          <div style="display:flex;align-items:center;gap:5px;margin-bottom:3px;flex-wrap:wrap;">
-            <span style="font-family:'Orbitron',sans-serif;font-size:12px;font-weight:700;color:var(--text);">${w.sym}</span>
-            <span style="font-size:7px;padding:1px 5px;background:${sc}20;border:1px solid ${sc}40;color:${sc};letter-spacing:1px;">${w.size}</span>
-            ${w.alert ? `<span style="font-size:7px;padding:1px 4px;background:#e8a80020;border:1px solid #e8a80040;color:var(--accent4);">🔥 ALERT</span>` : ''}
-            ${w.chain ? `<span style="font-size:7px;padding:1px 4px;background:${chainColor}20;border:1px solid ${chainColor}40;color:${chainColor};">${w.chain.toUpperCase()}</span>` : ''}
-            ${w.isDex ? `<span style="font-size:7px;padding:1px 4px;background:#9945ff20;border:1px solid #9945ff40;color:#9945ff;">DEX</span>` : ''}
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap;">
+            <span style="font-size:14px;font-weight:700;color:#f2f9ff;">${w.sym}</span>
+            <span style="font-size:9px;padding:2px 6px;background:${sc}20;border:1px solid ${sc}40;color:${sc};letter-spacing:1px;">${w.size}</span>
+            ${w.alert ? `<span style="font-size:9px;padding:2px 6px;background:#e8a80020;border:1px solid #e8a80040;color:var(--accent4);letter-spacing:1px;">ALERT</span>` : ''}
+            ${w.chain ? `<span style="font-size:9px;padding:2px 6px;background:${chainColor}20;border:1px solid ${chainColor}40;color:${chainColor};">${w.chain.toUpperCase()}</span>` : ''}
+            ${w.isDex ? `<span style="font-size:9px;padding:2px 6px;background:#9945ff20;border:1px solid #9945ff40;color:#9945ff;">DEX</span>` : ''}
           </div>
-          <div style="font-size:8px;color:var(--accent2);letter-spacing:1px;margin-bottom:2px;">${w.source}</div>
-          <div style="font-size:9px;color:var(--text2);font-family:'DM Sans',sans-serif;line-height:1.4;">${w.detail}</div>
-          ${w.isDex && w.dexUrl ? `<div style="font-size:8px;color:var(--accent2);margin-top:3px;">↗ Open on DexScreener</div>` : ''}
+          <div style="font-size:10px;color:var(--accent2);letter-spacing:1px;margin-bottom:3px;">${w.source}</div>
+          <div style="font-size:11px;color:var(--text2);line-height:1.5;">${w.detail}</div>
+          ${w.isDex && w.dexUrl ? `<div style="font-size:10px;color:var(--accent2);margin-top:4px;">↗ Open on DexScreener</div>` : ''}
         </div>
 
         <div style="text-align:right;flex-shrink:0;">
-          ${changeStr ? `<div style="font-size:12px;font-weight:700;color:${color};">${changeStr}</div>` : ''}
-          ${w.price > 0 ? `<div style="font-size:9px;color:var(--text2);">${fmt(w.price)}</div>` : ''}
-          <div style="font-size:8px;color:var(--text3);margin-top:2px;">${timeAgo(w.time)}</div>
+          ${changeStr ? `<div style="font-size:13px;font-weight:700;color:${color};font-variant-numeric:tabular-nums;">${changeStr}</div>` : ''}
+          ${w.price > 0 ? `<div style="font-size:11px;color:var(--text2);font-variant-numeric:tabular-nums;">${fmt(w.price)}</div>` : ''}
+          <div style="font-size:10px;color:var(--text3);margin-top:3px;">${timeAgo(w.time)}</div>
         </div>
       </div>`;
   }).join('');
@@ -1456,16 +1573,15 @@ function renderWhales() {
 
 async function loadWhaleToken(sym) {
   if (!sym) return;
-  goHome();
   const existing = TOKENS.find(t => t.symbol === sym);
-  if (existing) { await goDetail(existing.id); return; }
+  if (existing) { await goDetail(existing.id, 'whale'); return; }
   try {
     const r = await fetch(`${SERVER}/ticker?symbol=${sym}`);
     const d = await r.json();
     if (d.price) {
       const token = { id: sym.toLowerCase(), symbol: sym, name: sym, price: d.price, change: d.change||0, high: d.high||d.price, low: d.low||d.price, rank: 999, priceSource: d.source };
       TOKENS.unshift(token);
-      await goDetail(token.id);
+      await goDetail(token.id, 'whale');
     }
   } catch(e) { console.error('loadWhaleToken:', e); }
 }
@@ -1643,7 +1759,6 @@ function toggleMode() {
   const safe  = document.getElementById('modeToggleSafe');
   const degen = document.getElementById('modeToggleDegen');
   const runBtn = document.getElementById('runBtn');
-  const scalpBtn = document.getElementById('scalp-btn');
 
   if (degenMode) {
     safe.style.background  = 'transparent';
@@ -1651,7 +1766,6 @@ function toggleMode() {
     degen.style.background = 'var(--accent3)';
     degen.style.color      = '#fff';
     if (runBtn)   { runBtn.style.borderColor = 'var(--accent3)'; runBtn.style.color = 'var(--accent3)'; runBtn.style.background = '#e8003d08'; }
-    if (scalpBtn) { scalpBtn.style.borderColor = 'var(--accent3)'; }
     showChartStatus('DEGEN MODE — High risk signals enabled', 'var(--accent3)');
     setTimeout(() => showChartStatus(''), 3000);
   } else {
@@ -1660,7 +1774,6 @@ function toggleMode() {
     degen.style.background = 'transparent';
     degen.style.color      = 'var(--text3)';
     if (runBtn)   { runBtn.style.borderColor = 'var(--accent)'; runBtn.style.color = 'var(--accent)'; runBtn.style.background = '#00e87a08'; }
-    if (scalpBtn) { scalpBtn.style.borderColor = 'var(--accent4)'; }
     showChartStatus('SAFE MODE — Conservative signals enabled', 'var(--accent)');
     setTimeout(() => showChartStatus(''), 3000);
   }
@@ -1675,10 +1788,14 @@ function showScannerPage() {
   document.getElementById('homePage').className = 'page hidden-left';
   document.getElementById('detailPage').className = 'page hidden-right';
   document.getElementById('scannerPage').className = 'page visible';
-  document.getElementById('backBtn').classList.add('show');
-  document.getElementById('backBtn').onclick = goHome;
+  document.getElementById('detailPage').className = 'page hidden-right';
+  const bb = document.getElementById('backBtn');
+  bb.classList.add('show'); bb.classList.remove('ctx');
+  bb.textContent = '← BACK';
+  bb.onclick = goHome;
   const btn = document.getElementById('scanNavBtn');
   if (btn) { btn.textContent = 'CLOSE'; btn.onclick = goHome; }
+  savePageState('scanner');
 }
 
 const SECTORS = {
@@ -1796,7 +1913,7 @@ async function runMexcScan() {
     ].join('');
 
   } catch(e) {
-    status.textContent = `❌ Scan failed: ${e.message}`;
+    status.textContent = `Scan failed: ${e.message}`;
     status.style.color = 'var(--accent3)';
     empty.style.display = 'block';
   }
@@ -1818,28 +1935,27 @@ function renderScanSection(title, subtitle, tokens, color) {
     const changeSign  = t.change >= 0 ? '+' : '';
     const sectorLabel = t.sectorLabel || t.sector || '';
     return `
-      <div onclick="loadScanToken('${t.sym}')" style="padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;align-items:center;gap:10px;" onmouseover="this.style.background='#ffffff08'" onmouseout="this.style.background='transparent'">
+      <div onclick="loadScanToken('${t.sym}')" style="padding:13px 16px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;align-items:center;gap:12px;" onmouseover="this.style.background='#071120'" onmouseout="this.style.background='transparent'">
         <div style="flex:1;min-width:0;">
-          <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">
-            <span style="font-family:'Orbitron',sans-serif;font-size:13px;color:var(--text);font-weight:700;">${t.sym}</span>
-            ${sectorLabel ? `<span style="font-size:7px;padding:1px 5px;border:1px solid ${color}40;color:${color};letter-spacing:1px;">${sectorLabel}</span>` : ''}
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span style="font-family:'Space Grotesk',sans-serif;font-size:14px;color:#f2f9ff;font-weight:700;">${t.sym}</span>
+            ${sectorLabel ? `<span style="font-family:'Space Grotesk',sans-serif;font-size:9px;padding:2px 6px;border:1px solid ${color}40;color:${color};letter-spacing:1px;">${sectorLabel}</span>` : ''}
           </div>
-          <div style="font-size:10px;color:var(--text2);">${fmt(t.price)}</div>
+          <div style="font-family:'Space Grotesk',sans-serif;font-size:11px;color:var(--text2);font-variant-numeric:tabular-nums;">${fmt(t.price)}</div>
         </div>
         <div style="text-align:right;flex-shrink:0;">
-          <div style="font-size:13px;font-weight:700;color:${changeColor};">${changeSign}${t.change.toFixed(2)}%</div>
-          <div style="font-size:8px;color:var(--text3);">Range ${t.rangePercent.toFixed(1)}%</div>
+          <div style="font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;color:${changeColor};font-variant-numeric:tabular-nums;">${changeSign}${t.change.toFixed(2)}%</div>
+          <div style="font-family:'Space Grotesk',sans-serif;font-size:10px;color:var(--text3);margin-top:2px;">Range ${t.rangePercent.toFixed(1)}%</div>
         </div>
-        <div style="font-size:12px;color:var(--text3);"></div>
       </div>
     `;
   }).join('');
 
   return `
-    <div style="border-left:3px solid ${color};margin:8px 0 0 0;">
-      <div style="padding:10px 14px;background:${color}10;border-bottom:1px solid ${color}20;">
-        <div style="font-size:11px;color:${color};letter-spacing:2px;font-weight:700;margin-bottom:2px;">${title}</div>
-        <div style="font-size:8px;color:var(--text3);letter-spacing:1px;">${subtitle}</div>
+    <div style="border-left:3px solid ${color};margin:16px 0 0 0;">
+      <div style="padding:12px 16px;background:${color}0c;border-bottom:1px solid ${color}20;">
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:12px;color:${color};letter-spacing:2px;font-weight:700;margin-bottom:3px;">${title}</div>
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:10px;color:var(--text3);letter-spacing:0.5px;">${subtitle}</div>
       </div>
       ${rows}
     </div>
@@ -1849,7 +1965,7 @@ function renderScanSection(title, subtitle, tokens, color) {
 async function loadScanToken(sym) {
   // Check if already in token list
   const existing = TOKENS.find(t => t.symbol === sym);
-  if (existing) { goHome(); await goDetail(existing.id); return; }
+  if (existing) { await goDetail(existing.id, 'scanner'); return; }
 
   // Try fetching from server ticker endpoint
   try {
@@ -1858,8 +1974,7 @@ async function loadScanToken(sym) {
     if (d.price && d.price > 0) {
       const token = { id: sym.toLowerCase(), symbol: sym, name: sym, price: d.price, change: d.change || 0, high: d.high || d.price, low: d.low || d.price, rank: 999, priceSource: d.source || 'MEXC' };
       TOKENS.unshift(token);
-      goHome();
-      await goDetail(token.id);
+      await goDetail(token.id, 'scanner');
       return;
     }
   } catch(e) { console.error('loadScanToken ticker error:', e); }
@@ -1869,12 +1984,11 @@ async function loadScanToken(sym) {
   if (scanToken) {
     const token = { id: sym.toLowerCase(), symbol: sym, name: sym, price: scanToken.price, change: scanToken.change, high: scanToken.high, low: scanToken.low, rank: 999, priceSource: 'MEXC' };
     TOKENS.unshift(token);
-    goHome();
-    await goDetail(token.id);
+    await goDetail(token.id, 'scanner');
     return;
   }
 
-  alert(`❌ Could not load ${sym} — try searching it in the MEXC ticker search box`);
+  alert(`Could not load ${sym} — try searching it in the MEXC ticker search box`);
 }
 
 function openHistory() {
@@ -2310,7 +2424,7 @@ function drawChart() {
     const oY=py(c.open),cY=py(c.close),w=Math.max(cw*0.7,2);
     ctx.strokeStyle=color;ctx.lineWidth=1;
     ctx.beginPath();ctx.moveTo(x,py(c.high));ctx.lineTo(x,py(c.low));ctx.stroke();
-    ctx.fillStyle=up?'#00ff9d60':'#ff3c6e60';
+    ctx.fillStyle=color;
     const bt=Math.min(oY,cY),bh=Math.abs(oY-cY)||1;
     ctx.fillRect(x-w/2,bt,w,bh);ctx.strokeRect(x-w/2,bt,w,bh);
   });
@@ -2453,604 +2567,13 @@ function updateIndicators() {
 
 // AI ANALYSIS
 // ============================================================
-// SCALP MODE — fast 5M analysis
-// ============================================================
-// ============================================================
-// MANIPULATION MODE — detects stop hunts & fake breakouts on 5M
-// ============================================================
-async function runManipMode() {
-  if (!currentUser) { window.location.href = 'cipher_auth.html'; return; }
-  if (!activeToken) { alert('Select a token first'); return; }
-  if (!chartData.length) { alert('Chart still loading — please wait'); return; }
 
-  const btn    = document.getElementById('manip-btn');
-  const runBtn = document.getElementById('runBtn');
-  const scalpBtn = document.getElementById('scalp-btn');
-  const out    = document.getElementById('outArea');
-
-  btn.disabled = true; btn.textContent = 'SCANNING...';
-  runBtn.disabled = true; scalpBtn.disabled = true;
-
-  out.innerHTML = `
-    <div class="load-block">
-      <div class="load-top"><div class="spinner"></div><div class="load-txt" id="lMsg">LOADING 5M DATA...</div></div>
-      <div class="prog-track"><div class="prog-fill" id="pBar" style="width:0%"></div></div>
-      <div class="prog-lbl" id="pLbl">0%</div>
-    </div>`;
-
-  const setLoad = (pct, msg) => {
-    const b = document.getElementById('pBar');
-    const l = document.getElementById('pLbl');
-    const m = document.getElementById('lMsg');
-    if (b) b.style.width = pct + '%';
-    if (l) l.textContent = pct + '%';
-    if (m) m.textContent = msg;
-  };
-
-  try {
-    setLoad(15, 'FETCHING 5M CANDLES...');
-    const r = await fetch(`${SERVER}/candles?symbol=${activeToken.symbol}&interval=5m&limit=100`);
-    if (!r.ok) throw new Error('Server error');
-    const candleData = await r.json();
-    const candles = candleData.candles;
-    if (!candles || candles.length < 20) throw new Error('Not enough 5M data');
-
-    setLoad(40, 'DETECTING MANIPULATION PATTERNS...');
-
-    const closes = candles.map(c => c.c);
-    const highs  = candles.map(c => c.h);
-    const lows   = candles.map(c => c.l);
-    const opens  = candles.map(c => c.o);
-    const vols   = candles.map(c => c.v);
-    const n = closes.length;
-    const cp = closes[n - 1];
-
-    // ── MANIPULATION PATTERN DETECTION ──
-
-    const patterns = [];
-
-    // ATR for context
-    const trs = [];
-    for (let i = 1; i < n; i++) {
-      trs.push(Math.max(highs[i]-lows[i], Math.abs(highs[i]-closes[i-1]), Math.abs(lows[i]-closes[i-1])));
-    }
-    const atr = trs.slice(-14).reduce((a,b) => a+b, 0) / 14;
-    const atrPct = (atr / cp) * 100;
-
-    // Volume average
-    const avgVol = vols.slice(-20).reduce((a,b) => a+b, 0) / 20;
-
-    // Support & Resistance (last 30 candles)
-    const recentHighs = highs.slice(-30);
-    const recentLows  = lows.slice(-30);
-    const resistance  = Math.max(...recentHighs.slice(0, -3)); // exclude last 3
-    const support     = Math.min(...recentLows.slice(0, -3));
-
-    // ── 1. STOP HUNT DETECTION ──
-    // Wick below support then snapped back
-    const last  = candles[n-1];
-    const prev  = candles[n-2];
-    const prev2 = candles[n-3];
-
-    const lastWickLow  = Math.min(last.o, last.c) - last.l;
-    const lastWickHigh = last.h - Math.max(last.o, last.c);
-    const lastBody     = Math.abs(last.c - last.o);
-    const prevBody     = Math.abs(prev.c - prev.o);
-
-    let manipType = 'NONE';
-    let manipSignal = 'NEUTRAL';
-    let manipStrength = 0;
-
-    // Stop hunt low — wick below support, close back above
-    if (last.l < support && last.c > support && lastWickLow > lastBody * 1.5) {
-      manipType = 'STOP HUNT LOW';
-      manipSignal = 'LONG';
-      manipStrength = 85;
-      patterns.push(`🔻 Stop hunt below support $${fmt(support)} — wick ${((lastWickLow/cp)*100).toFixed(2)}% — snap back LONG`);
-    }
-
-    // Stop hunt high — wick above resistance, close back below
-    if (last.h > resistance && last.c < resistance && lastWickHigh > lastBody * 1.5) {
-      manipType = 'STOP HUNT HIGH';
-      manipSignal = 'SHORT';
-      manipStrength = 85;
-      patterns.push(`🔺 Stop hunt above resistance $${fmt(resistance)} — wick ${((lastWickHigh/cp)*100).toFixed(2)}% — snap back SHORT`);
-    }
-
-    // ── 2. FAKE BREAKOUT ──
-    // Previous candle broke level but this candle closed back inside
-    if (prev.h > resistance && last.c < resistance && last.c < prev.c) {
-      manipType = 'FAKE BREAKOUT HIGH';
-      manipSignal = 'SHORT';
-      manipStrength = 80;
-      patterns.push(`🚫 Fake breakout above $${fmt(resistance)} — failed close — SHORT`);
-    }
-
-    if (prev.l < support && last.c > support && last.c > prev.c) {
-      manipType = 'FAKE BREAKOUT LOW';
-      manipSignal = 'LONG';
-      manipStrength = 80;
-      patterns.push(`🚫 Fake breakdown below $${fmt(support)} — failed close — LONG`);
-    }
-
-    // ── 3. VOLUME SPIKE REVERSAL ──
-    // Huge volume candle in one direction, next candle reverses
-    if (vols[n-2] > avgVol * 3 && Math.sign(closes[n-1] - opens[n-1]) !== Math.sign(closes[n-2] - opens[n-2])) {
-      const dir = closes[n-1] > opens[n-1] ? 'LONG' : 'SHORT';
-      if (manipType === 'NONE') {
-        manipType = 'VOLUME SPIKE REVERSAL';
-        manipSignal = dir;
-        manipStrength = 75;
-      }
-      patterns.push(`📊 Volume spike ${(vols[n-2]/avgVol).toFixed(1)}x avg — reversal candle forming`);
-    }
-
-    // ── 4. SLOW BLEED EXHAUSTION ──
-    // 5+ red candles in a row, volume dying, RSI < 30
-    const last5 = candles.slice(-5);
-    const allRed = last5.every(c => c.c < c.o);
-    const volDrying = vols[n-1] < avgVol * 0.4;
-    let rsi = 50;
-    try {
-      let g = 0, l = 0;
-      for (let i = n-9; i < n; i++) { const d = closes[i]-closes[i-1]; d>0?g+=d:l-=d; }
-      rsi = Math.round(100-(100/(1+(l===0?100:g/l))));
-    } catch(e) {}
-
-    if (allRed && volDrying && rsi < 35) {
-      if (manipType === 'NONE') {
-        manipType = 'SLOW BLEED EXHAUSTION';
-        manipSignal = 'LONG';
-        manipStrength = 70;
-      }
-      patterns.push(`😮‍💨 5 consecutive red candles + volume drying + RSI ${rsi} — seller exhaustion LONG`);
-    }
-
-    // ── 5. PUMP EXHAUSTION ──
-    const last5Green = candles.slice(-5).every(c => c.c > c.o);
-    const volDyingGreen = vols[n-1] < vols[n-3] * 0.5;
-    if (last5Green && volDyingGreen && rsi > 75) {
-      if (manipType === 'NONE') {
-        manipType = 'PUMP EXHAUSTION';
-        manipSignal = 'SHORT';
-        manipStrength = 70;
-      }
-      patterns.push(`🎈 5 consecutive green candles + volume fading + RSI ${rsi} — pump exhaustion SHORT`);
-    }
-
-    setLoad(70, 'ASKING AI...');
-
-    // Entry/TP/SL based on ATR
-    const isLong = manipSignal === 'LONG';
-    const entry  = cp;
-    const tp     = isLong ? cp + atr * 1.5 : cp - atr * 1.5;
-    const sl     = isLong ? cp - atr * 0.8 : cp + atr * 0.8;
-    const tpPct  = Math.abs((tp - entry) / entry * 100).toFixed(2);
-    const slPct  = Math.abs((sl - entry) / entry * 100).toFixed(2);
-
-    // Ask AI to validate and add context
-    const manipPrompt = `You are CIPHER in MANIPULATION MODE. Validate this manipulation pattern for ${activeToken.symbol} 5M chart.
-
-DETECTED PATTERN: ${manipType}
-SIGNAL: ${manipSignal}
-STRENGTH: ${manipStrength}%
-Current Price: $${fmt(cp)}
-ATR(14): $${fmt(atr)} (${atrPct.toFixed(2)}% of price)
-RSI(9): ${rsi}
-Support: $${fmt(support)} | Resistance: $${fmt(resistance)}
-Volume vs avg: ${(vols[n-1]/avgVol).toFixed(1)}x
-
-DETECTED SIGNALS:
-${patterns.join('\n')}
-
-${manipType === 'NONE' ? 'NO CLEAR MANIPULATION PATTERN DETECTED. Advise the trader to wait.' : `Validate the ${manipType} pattern and give entry guidance.`}
-
-Rules:
-- Window: 5-15 mins MAX for manipulation trades
-- SL must be TIGHT — behind the manipulation wick
-- Entry AT MARKET — manipulation trades need immediate entry
-- If pattern is NONE — say WAIT clearly
-
-Respond ONLY in JSON:
-{"valid":true or false,"signal":"${manipSignal}","confidence":${manipStrength},"entry":"${fmt(entry)}","target":"${fmt(tp)}","stop":"${fmt(sl)}","tp_pct":"${tpPct}%","sl_pct":"${slPct}%","window":"5-15 mins","reasoning":"2 sentences validating the pattern","action":"ENTER NOW or WAIT","warning":"one risk warning or empty"}`;
-
-    const aiRes = await fetch(`${SERVER}/analyze`, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({prompt: manipPrompt})
-    });
-    if (!aiRes.ok) throw new Error('AI error');
-    const aiData = await aiRes.json();
-    if(!aiData.content||!aiData.content[0]){throw new Error(typeof aiData.error==='string'?aiData.error:JSON.stringify(aiData.error)||'No response from AI');}
-    let raw = aiData.content[0].text.trim().replace(/```json|```/g,'').trim();
-    const s = JSON.parse(raw);
-
-    setLoad(100, 'DONE!');
-    await new Promise(res => setTimeout(res, 200));
-
-    // Render result
-    const sigColor  = s.signal === 'LONG' ? 'var(--accent)' : s.signal === 'SHORT' ? 'var(--accent3)' : 'var(--accent4)';
-    const typeColor = '#a855f7';
-    const isWait    = !s.valid || s.action === 'WAIT' || manipType === 'NONE';
-
-    out.innerHTML = `
-      <div class="out-block" style="border-left:2px solid #a855f7;">
-        <div class="out-meta">
-          <div class="out-tag" style="background:#a855f708;border-color:#a855f730;color:#a855f7;">MANIPULATION — 5M</div>
-          <div class="out-time">${new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</div>
-        </div>
-
-        <!-- Pattern type -->
-        <div style="padding:8px 10px;background:#a855f710;border:1px solid #a855f730;margin-bottom:10px;">
-          <div style="font-size:8px;color:#a855f7;letter-spacing:2px;margin-bottom:3px;">PATTERN DETECTED</div>
-          <div style="font-size:12px;font-family:'Orbitron',sans-serif;color:${isWait?'var(--accent4)':'#fff'};font-weight:700;">${isWait ? 'NO CLEAR PATTERN — WAIT' : manipType}</div>
-        </div>
-
-        ${!isWait ? `
-        <!-- Signal + Action -->
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-          <div>
-            <div style="font-size:8px;color:var(--text3);letter-spacing:2px;margin-bottom:4px;">DIRECTION</div>
-            <div style="font-family:'Orbitron',sans-serif;font-size:20px;font-weight:900;color:${sigColor};">${s.signal}</div>
-          </div>
-          <div style="text-align:right;">
-            <div style="font-size:8px;color:var(--text3);letter-spacing:2px;margin-bottom:4px;">ACTION</div>
-            <div style="font-size:12px;font-weight:700;color:${s.action==='ENTER NOW'?'var(--accent)':'var(--accent4)'};letter-spacing:1px;">${s.action}</div>
-            <div style="font-size:9px;color:var(--text3);margin-top:2px;">${s.confidence}% confidence</div>
-          </div>
-        </div>
-
-        <!-- Entry/TP/SL -->
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:var(--border);margin-bottom:10px;">
-          <div style="background:var(--bg3);padding:8px 10px;">
-            <div style="font-size:7px;color:var(--text3);letter-spacing:1px;margin-bottom:3px;">MARKET ENTRY</div>
-            <div style="font-size:13px;font-family:'Rajdhani',sans-serif;font-weight:700;color:var(--text);">${fmt(parseFloat(s.entry))}</div>
-          </div>
-          <div style="background:var(--bg3);padding:8px 10px;">
-            <div style="font-size:7px;color:var(--accent);letter-spacing:1px;margin-bottom:3px;">TAKE PROFIT</div>
-            <div style="font-size:13px;font-family:'Rajdhani',sans-serif;font-weight:700;color:var(--accent);">${fmt(parseFloat(s.target))}</div>
-            <div style="font-size:8px;color:var(--accent);margin-top:1px;">+${s.tp_pct}</div>
-          </div>
-          <div style="background:var(--bg3);padding:8px 10px;">
-            <div style="font-size:7px;color:var(--accent3);letter-spacing:1px;margin-bottom:3px;">STOP LOSS</div>
-            <div style="font-size:13px;font-family:'Rajdhani',sans-serif;font-weight:700;color:var(--accent3);">${fmt(parseFloat(s.stop))}</div>
-            <div style="font-size:8px;color:var(--accent3);margin-top:1px;">-${s.sl_pct}</div>
-          </div>
-        </div>
-
-        <!-- Window -->
-        <div style="padding:6px 10px;background:#a855f708;border:1px solid #a855f720;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
-          <div style="font-size:9px;color:#a855f7;letter-spacing:1px;">TIME WINDOW</div>
-          <div style="font-size:11px;font-weight:700;color:#fff;">${s.window}</div>
-        </div>` : ''}
-
-        <!-- Detected patterns list -->
-        ${patterns.length ? `
-        <div style="margin-bottom:10px;">
-          <div style="font-size:8px;color:var(--text3);letter-spacing:2px;margin-bottom:6px;">SIGNALS FOUND</div>
-          ${patterns.map(p => `<div style="font-size:10px;color:var(--text2);padding:4px 0;border-bottom:1px solid var(--border);font-family:'DM Sans',sans-serif;">${p}</div>`).join('')}
-        </div>` : ''}
-
-        <!-- Reasoning -->
-        <div style="font-size:11px;color:var(--text2);line-height:1.7;font-family:'DM Sans',sans-serif;margin-bottom:${s.warning?'8px':'0'}">${s.reasoning}</div>
-        ${s.warning ? `<div style="font-size:10px;color:var(--accent4);margin-top:4px;font-family:'DM Sans',sans-serif;">⚠ ${s.warning}</div>` : ''}
-
-        <div style="display:flex;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
-          <div style="font-size:8px;color:var(--text3);">ATR ${atrPct.toFixed(2)}%</div>
-          <div style="font-size:8px;color:var(--text3);">RSI ${rsi}</div>
-          <div style="font-size:8px;color:var(--text3);">VOL ${(vols[n-1]/avgVol).toFixed(1)}x avg</div>
-        </div>
-      </div>
-    `;
-
-    // Send to Telegram if signal found and linked
-    if (!isWait && userProfile?.telegram_verified) {
-      sendPersonalNotification(
-        `MANIPULATION ALERT — ${activeToken.symbol} 5M\n\n` +
-        `Pattern: ${manipType}\n` +
-        `Signal: ${s.signal} (${s.confidence}%)\n` +
-        `Action: ${s.action}\n\n` +
-        `Entry: ${s.entry}\n` +
-        `TP: ${s.target} (+${s.tp_pct})\n` +
-        `SL: ${s.stop} (-${s.sl_pct})\n` +
-        `Window: ${s.window}\n\n` +
-        `${s.reasoning}\n\n` +
-        `NOT FINANCIAL ADVICE`,
-        'analysis'
-      );
-    }
-
-  } catch(e) {
-    out.innerHTML = `<div class="out-block" style="border-left:2px solid var(--accent3)">
-      <div class="out-txt" style="color:var(--accent3)">MANIP ERROR: ${e.message}</div>
-    </div>`;
-  }
-
-  btn.disabled = false; btn.textContent = '⚡ MANIPULATION — 5M';
-  runBtn.disabled = false; scalpBtn.disabled = false;
-}
-
-async function runScalpMode() {
-  if (!currentUser) { window.location.href = 'cipher_auth.html'; return; }
-  if (!activeToken) { alert('Select a token first'); return; }
-  if (!chartData.length) {
-    alert('Chart still loading — please wait a moment before running scalp analysis');
-    return;
-  }
-
-  const btn = document.getElementById('scalp-btn');
-  const runBtn = document.getElementById('runBtn');
-  const out = document.getElementById('outArea');
-
-  btn.disabled = true; btn.textContent = 'SCANNING...';
-  runBtn.disabled = true;
-
-  // Switch to 5M for scalp
-  const prevTf = activeTimeframe;
-  activeTimeframe = '5M';
-  document.querySelectorAll('.tf-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.tf === '5M');
-  });
-
-  out.innerHTML = `
-    <div class="load-block">
-      <div class="load-top"><div class="spinner"></div><div class="load-txt" id="lMsg">LOADING 5M CANDLES...</div></div>
-      <div class="prog-track"><div class="prog-fill" id="pBar" style="width:0%"></div></div>
-      <div class="prog-lbl" id="pLbl">0%</div>
-    </div>`;
-
-  const setLoad = (pct, msg) => {
-    const b = document.getElementById('pBar');
-    const l = document.getElementById('pLbl');
-    const m = document.getElementById('lMsg');
-    if (b) b.style.width = pct + '%';
-    if (l) l.textContent = pct + '%';
-    if (m) m.textContent = msg;
-  };
-
-  try {
-    // Fetch 5M candles
-    setLoad(15, 'FETCHING 5M CANDLES...');
-    const r = await fetch(`${SERVER}/candles?symbol=${activeToken.symbol}&interval=5m&limit=100`);
-    if (!r.ok) throw new Error('Server error');
-    const candleData = await r.json();
-    const candles = candleData.candles;
-    if (!candles || candles.length < 20) throw new Error('Not enough 5M candle data');
-
-    setLoad(35, 'FETCHING 15M TREND...');
-    // Fetch 15M for trend confirmation
-    let htfTrend = 'UNKNOWN';
-    try {
-      const r15 = await fetch(`${SERVER}/candles?symbol=${activeToken.symbol}&interval=15m&limit=50`);
-      if (r15.ok) {
-        const d15 = await r15.json();
-        if (d15.candles && d15.candles.length >= 20) {
-          const c15 = d15.candles;
-          const n = c15.length;
-          const closes15 = c15.map(c => c.c);
-          const ema20 = closes15.slice(-20).reduce((a, b) => a + b, 0) / 20;
-          const ema50 = closes15.length >= 50 ? closes15.slice(-50).reduce((a, b) => a + b, 0) / 50 : ema20;
-          const last = closes15[n - 1];
-          htfTrend = last > ema20 && ema20 > ema50 ? 'BULLISH' : last < ema20 && ema20 < ema50 ? 'BEARISH' : 'MIXED';
-        }
-      }
-    } catch(e) {}
-
-    setLoad(55, 'CALCULATING SCALP INDICATORS...');
-
-    // Calculate indicators on 5M data
-    const closes = candles.map(c => c.c);
-    const highs  = candles.map(c => c.h);
-    const lows   = candles.map(c => c.l);
-    const vols   = candles.map(c => c.v);
-    const n = closes.length;
-    const cp = closes[n - 1];
-
-    // RSI (9 period for scalping — more sensitive)
-    let rsi = 50;
-    try {
-      let g = 0, l = 0;
-      for (let i = n - 9; i < n; i++) {
-        const d = closes[i] - closes[i - 1];
-        if (d > 0) g += d; else l -= d;
-      }
-      rsi = Math.round(100 - (100 / (1 + (l === 0 ? 100 : g / l))));
-    } catch(e) {}
-
-    // EMA 9 and EMA 21 (scalp EMAs)
-    const emaCalc = (data, p) => {
-      const k = 2 / (p + 1); let e = data[0];
-      for (let i = 1; i < data.length; i++) e = data[i] * k + e * (1 - k);
-      return e;
-    };
-    const ema9  = emaCalc(closes.slice(-30), 9);
-    const ema21 = emaCalc(closes.slice(-30), 21);
-
-    // ATR (7 period for scalping)
-    let atr = 0;
-    try {
-      const trs = [];
-      for (let i = n - 7; i < n; i++) {
-        trs.push(Math.max(highs[i] - lows[i], Math.abs(highs[i] - closes[i-1]), Math.abs(lows[i] - closes[i-1])));
-      }
-      atr = trs.reduce((a, b) => a + b, 0) / trs.length;
-    } catch(e) {}
-
-    // Volume spike (last candle vs 10 avg)
-    const avgVol = vols.slice(-10).reduce((a, b) => a + b, 0) / 10;
-    const volSpike = vols[n - 1] > avgVol * 1.5;
-    const volStr = vols[n - 1] > avgVol * 2 ? 'STRONG SPIKE' : vols[n - 1] > avgVol * 1.5 ? 'ABOVE AVERAGE' : 'NORMAL';
-
-    // Momentum — last 3 candles direction
-    const last3Green = closes[n-1] > closes[n-2] && closes[n-2] > closes[n-3];
-    const last3Red   = closes[n-1] < closes[n-2] && closes[n-2] < closes[n-3];
-    const momentum = last3Green ? 'BULLISH MOMENTUM' : last3Red ? 'BEARISH MOMENTUM' : 'MIXED';
-
-    // Support/Resistance (recent 20 candles)
-    const recentHigh = Math.max(...highs.slice(-20));
-    const recentLow  = Math.min(...lows.slice(-20));
-
-    setLoad(75, 'ASKING AI...');
-
-    const scalpPrompt = `You are CIPHER in SCALP MODE${degenMode ? ' — DEGEN' : ''}. Give an ultra-fast scalp setup for ${activeToken.symbol}.
-
-TIMEFRAME: 5M (scalp) | 15M TREND: ${htfTrend}
-Current Price: $${fmt(cp)}
-EMA9: $${fmt(ema9)} | EMA21: $${fmt(ema21)}
-RSI(9): ${rsi} ${rsi > 70 ? '(OVERBOUGHT)' : rsi < 30 ? '(OVERSOLD)' : '(NEUTRAL)'}
-ATR(7): $${fmt(atr)} (${((atr/cp)*100).toFixed(3)}% of price)
-Volume: ${volStr}
-Momentum: ${momentum}
-Recent High: $${fmt(recentHigh)} | Recent Low: $${fmt(recentLow)}
-
-SCALP RULES:
-${degenMode ? `
-- DEGEN MODE: Always give LONG or SHORT. Never SKIP.
-- Trade against the trend if momentum is strong enough — contrarian scalps are valid.
-- Entry AT market is acceptable if momentum is explosive.
-- SL = 0.8x ATR (ultra tight — take the loss fast and re-enter)
-- TP = 2x ATR (ride the momentum further)
-- Time in trade: 2-10 minutes MAX
-- Position size up to 10% — degen scalps hit hard.
-- Chase if needed — missing the move is worse than a bad entry.
-` : `
-- Only trade WITH the 15M trend direction.
-- Entry must be at EMA9 bounce, recent support/resistance, or momentum breakout.
-- SL = 1x ATR (tight — scalps need tight stops)
-- TP = 1.5x ATR (quick profit — don't be greedy)
-- Time in trade: 5-20 minutes MAX
-- SKIP only when 15M trend directly contradicts 5M with no resolution.
-- Position size MAX 5% of capital.
-`}
-
-Respond ONLY in JSON:
-{"signal":"LONG or SHORT${degenMode ? '' : ' or SKIP'}","confidence":${degenMode ? '60-95' : '50-90'},"entry":"price","target":"price","stop":"price","tp_pct":"expected % gain","sl_pct":"expected % loss","rr":"risk reward e.g 1:1.5","window":"time window e.g 10-15 mins","reasoning":"2 sentences max — be direct","caution":"${degenMode ? 'one word max risk flag' : 'one caution flag or empty string'}","chase":"true or false"}`;
-
-    const aiRes = await fetch(`${SERVER}/analyze`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: scalpPrompt })
-    });
-    if (!aiRes.ok) throw new Error('AI error');
-    const aiData = await aiRes.json();
-    if(!aiData.content||!aiData.content[0]){throw new Error(typeof aiData.error==='string'?aiData.error:JSON.stringify(aiData.error)||'No response from AI');}
-    let raw = aiData.content[0].text.trim().replace(/```json|```/g, '').trim();
-    const s = JSON.parse(raw);
-
-    setLoad(100, 'DONE!');
-    await new Promise(res => setTimeout(res, 200));
-
-    // Render scalp result
-    const isLong  = s.signal === 'LONG';
-    const isShort = s.signal === 'SHORT';
-    const isSkip  = s.signal === 'SKIP';
-    const sigColor = isLong ? 'var(--accent)' : isShort ? 'var(--accent3)' : 'var(--accent4)';
-    const trendColor = htfTrend === 'BULLISH' ? 'var(--accent)' : htfTrend === 'BEARISH' ? 'var(--accent3)' : 'var(--accent4)';
-
-    out.innerHTML = `
-      <div class="out-block" style="border-left:2px solid var(--accent4);">
-        <div class="out-meta">
-          <div class="out-tag" style="background:#e8a80010;border-color:#e8a80030;color:var(--accent4);">SCALP MODE — 5M</div>
-          <div class="out-time">${new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</div>
-        </div>
-
-        <!-- Signal -->
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-          <div>
-            <div style="font-size:8px;color:var(--text3);letter-spacing:2px;margin-bottom:4px;">DIRECTION</div>
-            <div style="font-family:'Orbitron',sans-serif;font-size:22px;font-weight:900;color:${sigColor};letter-spacing:3px;">${s.signal}</div>
-          </div>
-          <div style="text-align:right;">
-            <div style="font-size:8px;color:var(--text3);letter-spacing:2px;margin-bottom:4px;">15M TREND</div>
-            <div style="font-size:11px;color:${trendColor};font-weight:700;letter-spacing:1px;">${htfTrend}</div>
-            <div style="font-size:9px;color:var(--text3);margin-top:2px;">${s.confidence}% confidence</div>
-          </div>
-        </div>
-
-        ${isSkip ? `
-        <div style="padding:12px;background:#e8a80010;border:1px solid #e8a80030;margin-bottom:10px;">
-          <div style="font-size:10px;color:var(--accent4);letter-spacing:2px;margin-bottom:4px;">NO SETUP — STAY OUT</div>
-          <div style="font-size:11px;color:var(--text2);font-family:'DM Sans',sans-serif;">${s.reasoning}</div>
-        </div>` : `
-
-        <!-- Entry / TP / SL -->
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:var(--border);margin-bottom:10px;">
-          <div style="background:var(--bg3);padding:8px 10px;">
-            <div style="font-size:7px;color:var(--text3);letter-spacing:1px;margin-bottom:3px;">${s.chase === 'true' ? 'CHASE ENTRY' : 'LIMIT ENTRY'}</div>
-            <div style="font-size:13px;font-family:'Rajdhani',sans-serif;font-weight:700;color:var(--text);">${fmt(parseFloat(s.entry))}</div>
-          </div>
-          <div style="background:var(--bg3);padding:8px 10px;">
-            <div style="font-size:7px;color:var(--accent);letter-spacing:1px;margin-bottom:3px;">TAKE PROFIT</div>
-            <div style="font-size:13px;font-family:'Rajdhani',sans-serif;font-weight:700;color:var(--accent);">${fmt(parseFloat(s.target))}</div>
-            <div style="font-size:8px;color:var(--accent);margin-top:1px;">+${s.tp_pct}</div>
-          </div>
-          <div style="background:var(--bg3);padding:8px 10px;">
-            <div style="font-size:7px;color:var(--accent3);letter-spacing:1px;margin-bottom:3px;">STOP LOSS</div>
-            <div style="font-size:13px;font-family:'Rajdhani',sans-serif;font-weight:700;color:var(--accent3);">${fmt(parseFloat(s.stop))}</div>
-            <div style="font-size:8px;color:var(--accent3);margin-top:1px;">-${s.sl_pct}</div>
-          </div>
-        </div>
-
-        <!-- Stats row -->
-        <div style="display:flex;gap:8px;margin-bottom:10px;">
-          <div style="flex:1;background:var(--bg3);border:1px solid var(--border2);padding:7px 10px;">
-            <div style="font-size:7px;color:var(--text3);letter-spacing:1px;margin-bottom:2px;">R/R</div>
-            <div style="font-size:12px;font-family:'Orbitron',sans-serif;color:var(--accent2);">${s.rr}</div>
-          </div>
-          <div style="flex:1;background:var(--bg3);border:1px solid var(--border2);padding:7px 10px;">
-            <div style="font-size:7px;color:var(--text3);letter-spacing:1px;margin-bottom:2px;">WINDOW</div>
-            <div style="font-size:12px;font-family:'Orbitron',sans-serif;color:var(--accent4);">${s.window}</div>
-          </div>
-          <div style="flex:1;background:var(--bg3);border:1px solid var(--border2);padding:7px 10px;">
-            <div style="font-size:7px;color:var(--text3);letter-spacing:1px;margin-bottom:2px;">SIZE</div>
-            <div style="font-size:12px;font-family:'Orbitron',sans-serif;color:var(--text);">MAX 5%</div>
-          </div>
-        </div>
-
-        <!-- Entry type badge -->
-        <div style="padding:6px 10px;background:${s.chase==='true'?'#e8003d10':'#00e87a08'};border:1px solid ${s.chase==='true'?'#e8003d30':'#00e87a20'};margin-bottom:10px;">
-          <div style="font-size:9px;color:${s.chase==='true'?'var(--accent3)':'var(--accent)'};letter-spacing:1px;">
-            ${s.chase==='true' ? 'MARKET ORDER — Price moving fast, enter at market' : 'LIMIT ORDER — Wait for price to pull back to entry'}
-          </div>
-        </div>`}
-
-        <!-- Reasoning -->
-        <div style="font-size:11px;color:var(--text2);line-height:1.7;font-family:'DM Sans',sans-serif;margin-bottom:${s.caution?'8px':'0'}">${s.reasoning}</div>
-        ${s.caution ? `<div style="font-size:10px;color:var(--accent4);margin-top:4px;font-family:'DM Sans',sans-serif;">Note: ${s.caution}</div>` : ''}
-
-        <!-- Volume indicator -->
-        <div style="display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
-          <div style="font-size:8px;color:var(--text3);letter-spacing:1px;">5M VOL</div>
-          <div style="font-size:9px;color:${volSpike?'var(--accent)':'var(--text2)'};">${volStr}</div>
-          <div style="font-size:8px;color:var(--text3);margin-left:auto;">RSI(9): <span style="color:${rsi>70?'var(--accent3)':rsi<30?'var(--accent)':'var(--text2)'}">${rsi}</span></div>
-        </div>
-      </div>
-    `;
-
-    // Send to Telegram if linked
-    if (!isSkip && userProfile?.telegram_verified) {
-      sendPersonalNotification(
-        `SCALP SETUP — ${activeToken.symbol} 5M\n\n` +
-        `Direction: ${s.signal} (${s.confidence}%)\n` +
-        `15M Trend: ${htfTrend}\n\n` +
-        `Entry: ${s.entry} ${s.chase==='true'?'(MARKET)':'(LIMIT)'}\n` +
-        `TP: ${s.target} (+${s.tp_pct})\n` +
-        `SL: ${s.stop} (-${s.sl_pct})\n` +
-        `R/R: ${s.rr} | Window: ${s.window}\n\n` +
-        `${s.reasoning}\n\n` +
-        `MAX 5% position size\n` +
-        `NOT FINANCIAL ADVICE`,
-        'analysis'
-      );
-    }
-
-  } catch(e) {
-    out.innerHTML = `<div class="out-block" style="border-left:2px solid var(--accent3)">
-      <div class="out-txt" style="color:var(--accent3)">SCALP ERROR: ${e.message}</div>
-    </div>`;
-  }
-
-  btn.disabled = false; btn.textContent = 'SCALP MODE — 5M';
-  runBtn.disabled = false;
+// Extract the text block from an AI response — content[0] may be a thinking
+// block on newer models, so never assume the first block is the text
+function aiText(data) {
+  const block = (data.content || []).find(b => b.type === 'text' && typeof b.text === 'string');
+  if (!block) throw new Error(typeof data.error === 'string' ? data.error : 'No text in AI response — try again');
+  return block.text.trim().replace(/```json|```/g, '').trim();
 }
 
 async function runAnalysis() {
@@ -3410,7 +2933,7 @@ Respond ONLY with JSON (no markdown):
     if(!r.ok){const e=await r.json();throw new Error(e.error||'Server Error');}
     const data=await r.json();
     if(!data.content||!data.content[0]){throw new Error(typeof data.error==='string'?data.error:JSON.stringify(data.error)||'No response from AI — check API key on server');}
-    let raw=data.content[0].text.trim().replace(/```json|```/g,'').trim();
+    let raw=aiText(data);
     const a=JSON.parse(raw);
 
     // Fix ROI — recalculate correctly based on signal direction
@@ -3470,13 +2993,85 @@ Respond ONLY with JSON (no markdown):
   btn.disabled=false;btn.textContent='RUN ANALYSIS';
 }
 
+// Build the shareable signal card shown at the top of every analysis result
+function buildSignalCard(a, isSimulated) {
+  const sym = activeToken?.symbol || '';
+  const dir = a.signal === 'LONG' ? 'long' : a.signal === 'SHORT' ? 'short' : 'neut';
+  const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  const d = new Date();
+  const ts = `${months[d.getUTCMonth()]} ${d.getUTCDate()} · ${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')} UTC`;
+
+  const num = v => parseFloat((v ?? '').toString().replace(/[^0-9.]/g, '')) || 0;
+  const entryP = num(a.entry), targetP = num(a.target), stopP = num(a.stop);
+  const pctOf = p => (entryP && p) ? `${p >= entryP ? '+' : '−'}${Math.abs((p - entryP) / entryP * 100).toFixed(1)}%` : '';
+
+  // Entry status vs live price
+  const currP = activeToken?.price || 0;
+  const isBuy = a.signal === 'LONG';
+  let entryTag = /market/i.test(a.entry || '') ? 'MARKET' : /limit/i.test(a.entry || '') ? 'LIMIT' : '';
+  if (entryP && currP) {
+    const diff = Math.abs(currP - entryP) / entryP;
+    if (diff <= 0.005) entryTag = 'CMP';
+    else if (isBuy && currP < entryP * 0.98) entryTag = 'MISSED';
+    else if (!isBuy && currP > entryP * 1.02) entryTag = 'MISSED';
+    else if (!entryTag) entryTag = isBuy === (currP > entryP) ? 'LIMIT' : 'NEAR';
+  }
+
+  const rows = dir === 'short'
+    ? [['STOP', stopP, 'r'], ['ENTRY', entryP, ''], ['TARGET', targetP, 'g']]
+    : [['TARGET', targetP, 'g'], ['ENTRY', entryP, ''], ['STOP', stopP, 'r']];
+  const dotClass = { TARGET:'target', ENTRY:'entry', STOP:'stop' };
+  const dotTops = ['18%','50%','84%'];
+
+  const levels = (dir !== 'neut' && entryP) ? `
+    <div class="sc-levels">
+      <div class="rail">
+        ${rows.map((r,i)=>`<div class="rail-dot ${dotClass[r[0]]}" style="top:${dotTops[i]}"></div>`).join('')}
+      </div>
+      <div class="lv-rows">
+        ${rows.map(r=>`
+        <div class="lv-row">
+          <div class="lv-lbl">${r[0]}</div>
+          <div><span class="lv-val ${r[2]}">${r[1] ? fmt(r[1]) : '—'}</span><span class="lv-sub">${r[0]==='ENTRY' ? entryTag : pctOf(r[1])}</span></div>
+        </div>`).join('')}
+      </div>
+    </div>` : '';
+
+  const riskCls = a.risk === 'LOW' ? 'g' : a.risk === 'HIGH' ? 'r' : 'y';
+  return `
+    <div class="sig-card ${dir}">
+      <div class="sc-head">
+        <div class="sc-brand">CIPHER</div>
+        <div class="sc-time">${ts}</div>
+      </div>
+      <div class="sc-main">
+        <div>
+          <div class="sc-sym">${sym}</div>
+          <div class="sc-tf">${activeTimeframe} · ${degenMode ? 'DEGEN' : 'SAFE'} MODE${isSimulated ? ' · SIM DATA' : ''}</div>
+        </div>
+        <div class="sc-dir">
+          <div class="sc-dir-badge">${a.signal}</div>
+          <div class="sc-conf">CONFIDENCE <b>${a.confidence}%</b></div>
+        </div>
+      </div>
+      ${levels}
+      <div class="sc-stats">
+        <div class="st-cell"><div class="st-lbl">R:R</div><div class="st-val">${a.rr_ratio || '—'}</div></div>
+        <div class="st-cell"><div class="st-lbl">ROI</div><div class="st-val g">${a.roi || '—'}</div></div>
+        <div class="st-cell"><div class="st-lbl">RISK</div><div class="st-val ${riskCls}">${a.risk || '—'}</div></div>
+      </div>
+      ${a.bias ? `<div class="sc-reason">${a.bias}</div>` : ''}
+      <div class="sc-foot">
+        <div class="sc-url">tradewithcipher.online</div>
+        <div class="sc-nfa">NOT FINANCIAL ADVICE</div>
+      </div>
+    </div>`;
+}
+
 function renderResult(a, isSimulated=false, dataSource='BINANCE') {
-  const time=new Date().toLocaleTimeString('en-US',{hour12:false});
-  const sc=a.signal==='LONG'?'sig-long':a.signal==='SHORT'?'sig-short':'sig-neut';
-  const cc=a.signal==='LONG'?'cf-g':a.signal==='SHORT'?'cf-r':'cf-y';
   document.getElementById('outArea').innerHTML=`
+    ${buildSignalCard(a, isSimulated)}
     <div class="out-block">
-      <div class="out-meta"><div class="out-tag">${activeToken.symbol}</div><div class="out-time">${time} UTC</div></div>
       ${isSimulated ? `
       <div style="background:#ff3c6e15;border:1px solid #ff3c6e40;padding:8px 10px;margin-bottom:10px;border-radius:2px;">
         <div style="font-size:9px;color:var(--accent3);letter-spacing:1px;">SIMULATED DATA — Binance unavailable</div>
@@ -3484,18 +3079,10 @@ function renderResult(a, isSimulated=false, dataSource='BINANCE') {
       </div>` : `
       <div style="font-size:8px;color:var(--text3);letter-spacing:1px;margin-bottom:8px;"> ${dataSource}</div>`}
       <div class="sig-block">
-        <div class="sig-lbl">// SIGNAL</div>
-        <div class="sig-val ${sc}">${a.signal}</div>
-        <div class="conf-bar"><div class="conf-fill ${cc}" style="width:${a.confidence}%"></div></div>
-        <div class="conf-lbl">CONFIDENCE: ${a.confidence}%</div>
-        <div style="margin-top:8px;height:3px;background:var(--border2);border-radius:1px;overflow:hidden;">
+        <div style="height:3px;background:var(--border2);border-radius:1px;overflow:hidden;">
           <div style="height:100%;width:${a.accuracy||70}%;background:linear-gradient(90deg,var(--accent4),#ffbe0030);border-radius:1px;transition:width 1s ease;"></div>
         </div>
         <div class="conf-lbl">ACCURACY ESTIMATE: ${a.accuracy||70}%</div>
-      </div>
-      <div style="margin-top:10px;padding:8px 0;border-top:1px solid var(--border)">
-        <div style="font-size:8px;color:var(--text3);letter-spacing:2px;margin-bottom:4px">// BIAS</div>
-        <div style="font-size:11px;color:var(--accent2);line-height:1.5;letter-spacing:1px">${a.bias}</div>
       </div>
       ${a.sentiment_impact ? `
       <div style="margin-top:10px;padding:8px 0;border-top:1px solid var(--border)">
@@ -3521,76 +3108,13 @@ function renderResult(a, isSimulated=false, dataSource='BINANCE') {
         <div style="font-size:8px;color:var(--accent2);letter-spacing:2px;margin-bottom:4px">REFRESH IF SIGNAL FAILS</div>
         <div class="out-txt" style="color:var(--accent2)">${a.alternative}</div>
       </div>` : ''}
-      <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:var(--border)">
-        ${(()=>{
-          const entryP = parseFloat(a.entry?.toString().replace(/[^0-9.]/g,''));
-          const currP = activeToken?.price || 0;
-          const isBuy = a.signal === 'LONG';
-          let entryLabel = 'ENTRY';
-          let entryColor = 'var(--text3)';
-          let entryTag = '';
-          if (entryP && currP) {
-            const diff = Math.abs(currP - entryP) / entryP;
-            if (diff <= 0.005) {
-              entryTag = '● CMP';
-              entryColor = 'var(--accent)';
-            } else if (isBuy && currP > entryP) {
-              entryTag = '⏳ LIMIT — wait for pullback';
-              entryColor = 'var(--accent4)';
-            } else if (!isBuy && currP < entryP) {
-              entryTag = '⏳ LIMIT — wait for bounce';
-              entryColor = 'var(--accent4)';
-            } else if (isBuy && currP < entryP * 0.98) {
-              entryTag = '❌ MISSED — wait for next setup';
-              entryColor = 'var(--accent3)';
-            } else if (!isBuy && currP > entryP * 1.02) {
-              entryTag = '❌ MISSED — wait for next setup';
-              entryColor = 'var(--accent3)';
-            } else {
-              entryTag = '🎯 NEAR ENTRY';
-              entryColor = 'var(--accent2)';
-            }
-          }
-          return `
-          <div style="background:var(--bg3);padding:8px 6px;grid-column:span 3;">
-            <div style="font-size:7px;letter-spacing:1px;margin-bottom:3px;color:${entryColor}">${entryTag || 'ENTRY'}</div>
-            <div style="font-size:13px;color:var(--text);font-family:'Rajdhani',sans-serif;font-weight:700">${a.entry}</div>
-          </div>
-          <div style="background:var(--bg3);padding:8px 6px">
-            <div style="font-size:7px;color:var(--accent);letter-spacing:1px;margin-bottom:3px">TAKE PROFIT</div>
-            <div style="font-size:10px;color:var(--accent);font-family:'Rajdhani',sans-serif;font-weight:600">${a.target}</div>
-          </div>
-          <div style="background:var(--bg3);padding:8px 6px">
-            <div style="font-size:7px;color:var(--accent3);letter-spacing:1px;margin-bottom:3px">STOP LOSS</div>
-            <div style="font-size:10px;color:var(--accent3);font-family:'Rajdhani',sans-serif;font-weight:600">${a.stop}</div>
-          </div>
-          `;
-        })()}
-      </div>
-      <div style="margin-top:1px;display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border)">
-        <div style="background:var(--bg3);padding:8px 6px">
-          <div style="font-size:7px;color:var(--text3);letter-spacing:1px;margin-bottom:3px">RISK/REWARD</div>
-          <div style="font-size:13px;color:var(--accent2);font-family:'Rajdhani',sans-serif;font-weight:700">${a.rr_ratio||'1:2'}</div>
-        </div>
-        <div style="background:var(--bg3);padding:8px 6px">
-          <div style="font-size:7px;color:var(--text3);letter-spacing:1px;margin-bottom:3px">EXPECTED ROI</div>
-          <div style="font-size:13px;font-family:'Rajdhani',sans-serif;font-weight:700;color:var(--accent)">${a.roi||'—'}</div>
-        </div>
-      </div>
       ${a.position_size ? `
       <div style="margin-top:1px;background:var(--bg3);padding:10px 10px;border:1px solid #00ff9d25;">
         <div style="font-size:7px;color:var(--text3);letter-spacing:1px;margin-bottom:4px">💰 RECOMMENDED POSITION SIZE</div>
         <div style="font-size:16px;color:var(--accent);font-family:'Orbitron',sans-serif;font-weight:700;text-shadow:var(--glow)">${a.position_size}</div>
         <div style="font-size:8px;color:var(--text3);margin-top:3px;letter-spacing:1px;">Based on ${a.confidence}% confidence + ${a.risk} risk</div>
       </div>` : ''}
-      <div style="margin-top:8px;display:flex;align-items:center;justify-content:space-between">
-        <div style="font-size:8px;color:var(--text3);letter-spacing:1px">RISK</div>
-        <div style="font-size:9px;padding:2px 10px;border:1px solid;letter-spacing:1px;
-          ${a.risk==='LOW'?'border-color:#00ff9d40;color:var(--accent);background:#00ff9d10':
-            a.risk==='HIGH'?'border-color:#ff3c6e40;color:var(--accent3);background:#ff3c6e10':
-            'border-color:#ffbe0040;color:var(--accent4);background:#ffbe0010'}">${a.risk}</div>
-      </div>
-      ${a.risk_reason ? `<div style="margin-top:5px;font-size:9px;color:var(--text3);letter-spacing:1px;">${a.risk_reason}</div>` : ''}
+      ${a.risk_reason ? `<div style="margin-top:8px;font-size:9px;color:var(--text3);letter-spacing:1px;">${a.risk_reason}</div>` : ''}
 
       <!-- SIGNAL TIMER -->
       <div style="margin-top:10px;padding:10px;border:1px solid var(--border2);background:var(--bg3);">
@@ -4024,7 +3548,7 @@ Respond ONLY in JSON:
       body: JSON.stringify({prompt})
     });
     const data = await r.json();
-    const raw = data.content?.[0]?.text?.trim().replace(/```json|```/g,'').trim();
+    const raw = aiText(data);
     const result = JSON.parse(raw);
 
     // Action labels
@@ -4227,26 +3751,40 @@ document.querySelector('.chart-area').addEventListener('touchend', e => {
 // RESIZE
 new ResizeObserver(drawChart).observe(document.querySelector('.chart-area'));
 
-// Save active token to sessionStorage whenever it changes
-function savePageState() {
-  if (activeToken) {
-    sessionStorage.setItem('cipher_active_token', activeToken.id);
-    sessionStorage.setItem('cipher_active_tf', activeTimeframe);
-  }
+// Save current page + token + timeframe + detail tab so refresh restores it
+let currentPage = 'home';
+let currentDetailTab = 'chart';
+let detailOrigin = 'home';
+function savePageState(page) {
+  if (page) currentPage = page;
+  try {
+    localStorage.setItem('cipher_page_state', JSON.stringify({
+      page: currentPage,
+      tokenId: activeToken?.id || null,
+      tf: activeTimeframe,
+      tab: currentDetailTab,
+      origin: detailOrigin,
+    }));
+  } catch(e) {}
 }
 
 // Restore state after prices load
 async function restorePageState() {
-  const savedId = sessionStorage.getItem('cipher_active_token');
-  const savedTf = sessionStorage.getItem('cipher_active_tf');
-  if (!savedId) return;
-  const token = TOKENS.find(t => t.id === savedId);
-  if (!token) return;
-  if (savedTf) {
-    activeTimeframe = savedTf;
-    document.querySelectorAll('.tf-btn').forEach(b => b.classList.toggle('active', b.dataset.tf === savedTf));
+  let state = null;
+  try { state = JSON.parse(localStorage.getItem('cipher_page_state')); } catch(e) {}
+  if (!state || state.page === 'home') return;
+  if (state.page === 'scanner') { showScannerPage(); return; }
+  if (state.page === 'whale')   { showWhalePage();   return; }
+  if (state.page === 'detail' && state.tokenId) {
+    const token = TOKENS.find(t => t.id === state.tokenId);
+    if (!token) return;
+    if (state.tf) {
+      activeTimeframe = state.tf;
+      document.querySelectorAll('.tf-btn').forEach(b => b.classList.toggle('active', b.dataset.tf === state.tf));
+    }
+    await goDetail(token.id, state.origin || 'home');
+    if (state.tab && state.tab !== 'chart') showTab(state.tab);
   }
-  await goDetail(token.id);
 }
 
 // INIT — check auth first then load
