@@ -647,13 +647,13 @@
     <!-- Scan button + status -->
     <div style="padding:14px 16px;border-bottom:1px solid var(--border);background:var(--bg3);flex-shrink:0;display:flex;align-items:center;gap:14px;">
       <button onclick="runMexcScan()" id="scanBtn" style="background:var(--accent);color:#020408;border:none;font-family:'Orbitron',monospace;font-size:10px;font-weight:700;padding:9px 18px;cursor:pointer;letter-spacing:2px;flex-shrink:0;">SCAN NOW</button>
-      <div id="scanStatus" style="font-size:11px;color:var(--text3);letter-spacing:0.5px;font-family:'Space Grotesk',sans-serif;">Scan MEXC for top opportunities</div>
+      <div id="scanStatus" style="font-size:11px;color:var(--text3);letter-spacing:0.5px;font-family:'Space Grotesk',sans-serif;">Find tokens actually moving — MEXC perps, graded best-first</div>
     </div>
-    <!-- Results — sectioned -->
+    <!-- Results — graded movers, best first -->
     <div id="scanResults" style="overflow-y:auto;flex:1;">
       <div class="empty" id="scanEmpty">
         <div class="empty-icon">◈</div>
-        Run a scan to find<br>top trading opportunities
+        Run a scan to find<br>live movers on MEXC perps
       </div>
     </div>
   </div>
@@ -1127,10 +1127,10 @@ async function fetchMexcTicker() {
 
     // Fallback — check scan data
     if (!price) {
-      const scanToken = scanData.find(t => t.sym === ticker);
+      const scanToken = scanTokens.find(t => t.symbol === ticker);
       if (scanToken) {
-        price = scanToken.price; change = scanToken.change;
-        high = scanToken.high; low = scanToken.low; src = 'MEXC';
+        price = scanToken.price; change = scanToken.change24h;
+        high = scanToken.high24h; low = scanToken.low24h; src = 'MEXC';
       }
     }
 
@@ -1780,10 +1780,8 @@ function toggleMode() {
 }
 
 // ============================================================
-// MEXC SCANNER — Sectioned by method
+// SCANNER — live movers from CryptoRank, filtered to MEXC perps, graded
 // ============================================================
-let scanData = [];
-
 function showScannerPage() {
   document.getElementById('homePage').className = 'page hidden-left';
   document.getElementById('detailPage').className = 'page hidden-right';
@@ -1798,17 +1796,7 @@ function showScannerPage() {
   savePageState('scanner');
 }
 
-const SECTORS = {
-  'Layer 1':  ['BTC','ETH','SOL','AVAX','ADA','DOT','ATOM','NEAR','FTM','ONE','ALGO','EGLD','HBAR','SUI','APT','SEI','INJ','TIA','DYMENSION'],
-  'Layer 2':  ['MATIC','ARB','OP','IMX','LRC','METIS','BOBA','SKL','STRK','MANTA','BLAST'],
-  'DeFi':     ['UNI','AAVE','COMP','MKR','SNX','CRV','BAL','SUSHI','1INCH','GMX','DYDX','PENDLE','JUP','RAY','ORCA'],
-  'Meme':     ['DOGE','SHIB','PEPE','BONK','WIF','FLOKI','BABYDOGE','MEME','BRETT','POPCAT','MOG'],
-  'AI':       ['FET','AGIX','OCEAN','RLC','NMR','GRT','RNDR','TAO','WLD','ARKM','AIXBT'],
-  'Gaming':   ['AXS','SAND','MANA','ENJ','GALA','ILV','MAGIC','BEAM','RON','PIXEL'],
-  'Exchange': ['BNB','OKB','CRO','KCS','HT','MX'],
-  'RWA':      ['ONDO','CFG','RIO','POLYX','CPOOL'],
-};
-const STABLES = ['USDT','USDC','BUSD','DAI','TUSD','USDP','FRAX','FDUSD','PYUSD','USDD'];
+let scanTokens = [];
 
 async function runMexcScan() {
   const btn = document.getElementById('scanBtn');
@@ -1817,101 +1805,21 @@ async function runMexcScan() {
   const results = document.getElementById('scanResults');
 
   btn.textContent = 'SCANNING...'; btn.disabled = true;
-  status.textContent = 'Fetching MEXC markets...';
+  status.textContent = 'Finding tokens that are actually moving...';
   status.style.color = 'var(--accent2)';
   results.innerHTML = '';
   empty.style.display = 'none';
 
   try {
-    // Fetch ALL MEXC futures tickers directly via server proxy
-    status.textContent = 'Fetching all MEXC futures...';
-    const r = await fetch(`${SERVER}/mexc-scan`);
-    const allTickers = await r.json();
-    if (!allTickers || !Object.keys(allTickers).length) throw new Error('No data from server');
+    const r = await fetch(`${SERVER}/moving-scan`);
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    scanTokens = d.tokens || [];
+    if (!scanTokens.length) throw new Error('No movers right now');
 
-    status.textContent = `Processing ${Object.keys(allTickers).length} tokens...`;
-
-    const tokens = [];
-    for (const [sym, d] of Object.entries(allTickers)) {
-      if (!d.price || d.price <= 0) continue;
-      if (STABLES.includes(sym)) continue;
-      if (d.price < 0.0000001) continue;
-
-      const rangePercent = d.high && d.low ? ((d.high - d.low) / d.low) * 100 : 0;
-      const sector = getTokenSector(sym);
-
-      tokens.push({
-        sym, price: d.price,
-        change: d.change || 0,
-        high: d.high || d.price,
-        low: d.low || d.price,
-        rangePercent,
-        sources: d.sources || 1,
-        sector,
-      });
-    }
-
-    // ── METHOD 1: Volume Spikes (high range = unusual activity)
-    const volumeSpikes = [...tokens]
-      .filter(t => t.rangePercent > 8)
-      .sort((a,b) => b.rangePercent - a.rangePercent)
-      .slice(0, 10);
-
-    // ── METHOD 2: Momentum — biggest movers up
-    const topGainers = [...tokens]
-      .filter(t => t.change > 3)
-      .sort((a,b) => b.change - a.change)
-      .slice(0, 10);
-
-    // ── METHOD 3: Potential reversals — biggest losers (oversold bounce)
-    const potentialReversals = [...tokens]
-      .filter(t => t.change < -8)
-      .sort((a,b) => a.change - b.change)
-      .slice(0, 10);
-
-    // ── METHOD 4: BTC Laggards — tokens that haven't moved yet
-    // BTC's 24H change as benchmark
-    const btcChange = tokens.find(t => t.sym === 'BTC')?.change || 0;
-    const btcLaggards = [...tokens]
-      .filter(t => btcChange > 2 && t.change < btcChange * 0.3 && t.change > -2)
-      .sort((a,b) => a.change - b.change)
-      .slice(0, 10);
-
-    // ── METHOD 5: Sector leaders — top performer per sector
-    const sectorLeaders = [];
-    for (const [sector, syms] of Object.entries(SECTORS)) {
-      const sectorTokens = tokens.filter(t => syms.includes(t.sym)).sort((a,b) => b.change - a.change);
-      if (sectorTokens.length) sectorLeaders.push({ ...sectorTokens[0], sectorLabel: sector });
-    }
-    sectorLeaders.sort((a,b) => b.change - a.change);
-
-    // ── METHOD 6: Near 24H High (breakout candidates)
-    const breakouts = [...tokens]
-      .filter(t => t.high > 0 && (t.price / t.high) > 0.92 && t.change > 2)
-      .sort((a,b) => (b.price/b.high) - (a.price/a.high))
-      .slice(0, 10);
-
-    // ── METHOD 7: Near 24H Low (bounce candidates)
-    const bounceCandidates = [...tokens]
-      .filter(t => t.low > 0 && (t.price / t.low) < 1.05 && t.change < -5)
-      .sort((a,b) => (a.price/a.low) - (b.price/b.low))
-      .slice(0, 10);
-
-    scanData = tokens;
-    status.textContent = `Scan complete — ${tokens.length} tokens analysed`;
+    status.textContent = `${scanTokens.length} live movers on MEXC perps — best setups first`;
     status.style.color = 'var(--accent)';
-
-    // Render all sections
-    results.innerHTML = [
-      renderScanSection('VOLUME SPIKES', 'Unusual activity — 3x+ normal range', volumeSpikes, '#00c9ff'),
-      renderScanSection('TOP GAINERS', 'Strong momentum — potential continuation', topGainers, '#00ff9d'),
-      renderScanSection('REVERSAL WATCH', 'Oversold — potential bounce incoming', potentialReversals, '#ff6b6b'),
-      btcLaggards.length ? renderScanSection('BTC LAGGARDS', `BTC up ${btcChange.toFixed(1)}% but these haven't moved yet`, btcLaggards, '#fbbf24') : '',
-      renderScanSection('BREAKOUT CANDIDATES', 'Price near 24H high — potential breakout', breakouts, '#a78bfa'),
-      renderScanSection('BOUNCE CANDIDATES', 'Price near 24H low — potential reversal', bounceCandidates, '#f97316'),
-      renderScanSection('SECTOR LEADERS', 'Top performer in each sector', sectorLeaders, '#60a5fa'),
-    ].join('');
-
+    results.innerHTML = scanTokens.map(renderMoverRow).join('');
   } catch(e) {
     status.textContent = `Scan failed: ${e.message}`;
     status.style.color = 'var(--accent3)';
@@ -1921,45 +1829,32 @@ async function runMexcScan() {
   btn.textContent = 'SCAN NOW'; btn.disabled = false;
 }
 
-function getTokenSector(sym) {
-  for (const [sector, syms] of Object.entries(SECTORS)) {
-    if (syms.includes(sym)) return sector;
-  }
-  return 'Other';
-}
+const GRADE_COLOR = { 'A+':'#00e87a','A':'#00e87a','B+':'#00b8e6','B':'#00b8e6','C+':'#e8a800','C':'#e8a800','D':'#e8003d','F':'#e8003d' };
 
-function renderScanSection(title, subtitle, tokens, color) {
-  if (!tokens.length) return '';
-  const rows = tokens.map(t => {
-    const changeColor = t.change >= 0 ? 'var(--accent)' : 'var(--accent3)';
-    const changeSign  = t.change >= 0 ? '+' : '';
-    const sectorLabel = t.sectorLabel || t.sector || '';
-    return `
-      <div onclick="loadScanToken('${t.sym}')" style="padding:13px 16px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;align-items:center;gap:12px;" onmouseover="this.style.background='#071120'" onmouseout="this.style.background='transparent'">
-        <div style="flex:1;min-width:0;">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-            <span style="font-family:'Space Grotesk',sans-serif;font-size:14px;color:#f2f9ff;font-weight:700;">${t.sym}</span>
-            ${sectorLabel ? `<span style="font-family:'Space Grotesk',sans-serif;font-size:9px;padding:2px 6px;border:1px solid ${color}40;color:${color};letter-spacing:1px;">${sectorLabel}</span>` : ''}
-          </div>
-          <div style="font-family:'Space Grotesk',sans-serif;font-size:11px;color:var(--text2);font-variant-numeric:tabular-nums;">${fmt(t.price)}</div>
-        </div>
-        <div style="text-align:right;flex-shrink:0;">
-          <div style="font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;color:${changeColor};font-variant-numeric:tabular-nums;">${changeSign}${t.change.toFixed(2)}%</div>
-          <div style="font-family:'Space Grotesk',sans-serif;font-size:10px;color:var(--text3);margin-top:2px;">Range ${t.rangePercent.toFixed(1)}%</div>
-        </div>
-      </div>
-    `;
-  }).join('');
-
+function renderMoverRow(t) {
+  const gc = GRADE_COLOR[t.grade] || 'var(--text3)';
+  const chColor = t.change24h >= 0 ? 'var(--accent)' : 'var(--accent3)';
+  const chSign  = t.change24h >= 0 ? '+' : '';
+  const ch7Color = t.change7d >= 0 ? 'var(--accent)' : 'var(--accent3)';
+  const ch7Sign  = t.change7d >= 0 ? '+' : '';
+  const vol = t.volume24h >= 1e9 ? `$${(t.volume24h/1e9).toFixed(1)}B`
+            : t.volume24h >= 1e6 ? `$${(t.volume24h/1e6).toFixed(0)}M`
+            : `$${(t.volume24h/1e3).toFixed(0)}K`;
   return `
-    <div style="border-left:3px solid ${color};margin:16px 0 0 0;">
-      <div style="padding:12px 16px;background:${color}0c;border-bottom:1px solid ${color}20;">
-        <div style="font-family:'Space Grotesk',sans-serif;font-size:12px;color:${color};letter-spacing:2px;font-weight:700;margin-bottom:3px;">${title}</div>
-        <div style="font-family:'Space Grotesk',sans-serif;font-size:10px;color:var(--text3);letter-spacing:0.5px;">${subtitle}</div>
+    <div onclick="loadScanToken('${t.symbol}')" style="padding:13px 16px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;align-items:center;gap:13px;" onmouseover="this.style.background='#071120'" onmouseout="this.style.background='transparent'">
+      <div style="width:38px;height:38px;flex-shrink:0;border:2px solid ${gc};background:${gc}12;display:flex;align-items:center;justify-content:center;font-family:'Orbitron',sans-serif;font-size:14px;font-weight:900;color:${gc};">${t.grade}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">
+          <span style="font-family:'Space Grotesk',sans-serif;font-size:15px;color:#f2f9ff;font-weight:700;">${t.symbol}</span>
+          <span style="font-family:'Space Grotesk',sans-serif;font-size:10px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${t.name}</span>
+        </div>
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:11px;color:var(--text2);font-variant-numeric:tabular-nums;">${fmt(t.price)} \u00b7 ${vol} vol</div>
       </div>
-      ${rows}
-    </div>
-  `;
+      <div style="text-align:right;flex-shrink:0;">
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;color:${chColor};font-variant-numeric:tabular-nums;">${chSign}${t.change24h.toFixed(1)}%</div>
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:10px;color:${ch7Color};margin-top:2px;font-variant-numeric:tabular-nums;">7d ${ch7Sign}${t.change7d.toFixed(1)}%</div>
+      </div>
+    </div>`;
 }
 
 async function loadScanToken(sym) {
@@ -1980,9 +1875,9 @@ async function loadScanToken(sym) {
   } catch(e) { console.error('loadScanToken ticker error:', e); }
 
   // Fallback — use scan data if available
-  const scanToken = scanData.find(t => t.sym === sym);
+  const scanToken = scanTokens.find(t => t.symbol === sym);
   if (scanToken) {
-    const token = { id: sym.toLowerCase(), symbol: sym, name: sym, price: scanToken.price, change: scanToken.change, high: scanToken.high, low: scanToken.low, rank: 999, priceSource: 'MEXC' };
+    const token = { id: sym.toLowerCase(), symbol: sym, name: scanToken.name || sym, price: scanToken.price, change: scanToken.change24h, high: scanToken.high24h, low: scanToken.low24h, rank: 999, priceSource: 'MEXC' };
     TOKENS.unshift(token);
     await goDetail(token.id, 'scanner');
     return;
