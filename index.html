@@ -416,8 +416,9 @@
     .dot-pill     { display: none; }
 
     /* Make SCAN / WHALES buttons icon-only on very narrow screens */
-    #scanNavBtn  { padding: 4px 8px; font-size: 9px; letter-spacing: 0.5px; }
-    #whaleNavBtn { padding: 4px 8px; font-size: 9px; letter-spacing: 0.5px; }
+    #scanNavBtn  { padding: 4px 7px; font-size: 9px; letter-spacing: 0.5px; }
+    #whaleNavBtn { padding: 4px 7px; font-size: 9px; letter-spacing: 0.5px; }
+    #histNavBtn  { padding: 4px 7px; font-size: 9px; letter-spacing: 0.5px; }
 
     /* Chart topbar: stack c-info and tf-row vertically */
     .chart-topbar {
@@ -476,6 +477,7 @@
     <div class="dot-pill"><div class="dot blue"></div>AI</div>
     <button onclick="showScannerPage()" id="scanNavBtn" style="background:none;border:1px solid var(--border2);color:var(--text2);font-family:'DM Sans',sans-serif;font-size:10px;font-weight:600;padding:4px 10px;cursor:pointer;letter-spacing:1px;text-transform:uppercase;transition:all 0.2s;" onmouseover="this.style.color='var(--accent)';this.style.borderColor='var(--accent)'" onmouseout="this.style.color='var(--text2)';this.style.borderColor='var(--border2)'">SCAN</button>
     <button onclick="showWhalePage()" id="whaleNavBtn" style="background:none;border:1px solid var(--border2);color:var(--text2);font-family:'DM Sans',sans-serif;font-size:10px;font-weight:600;padding:4px 10px;cursor:pointer;letter-spacing:1px;text-transform:uppercase;transition:all 0.2s;" onmouseover="this.style.color='var(--accent2)';this.style.borderColor='var(--accent2)'" onmouseout="this.style.color='var(--text2)';this.style.borderColor='var(--border2)'">WHALES</button>
+    <button onclick="openHistory()" id="histNavBtn" style="background:none;border:1px solid var(--border2);color:var(--text2);font-family:'DM Sans',sans-serif;font-size:10px;font-weight:600;padding:4px 10px;cursor:pointer;letter-spacing:1px;text-transform:uppercase;transition:all 0.2s;" onmouseover="this.style.color='var(--accent4)';this.style.borderColor='var(--accent4)'" onmouseout="this.style.color='var(--text2)';this.style.borderColor='var(--border2)'">LOG</button>
     <button onclick="window.location.href='cipher_settings.html'" style="background:none;border:1px solid var(--border2);color:var(--text2);font-size:14px;width:30px;height:30px;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;" onmouseover="this.style.color='var(--accent2)';this.style.borderColor='var(--accent2)'" onmouseout="this.style.color='var(--text2)';this.style.borderColor='var(--border2)'" title="Settings">⚙</button>
   </div>
 </header>
@@ -1887,16 +1889,23 @@ async function loadScanToken(sym) {
 }
 
 function openHistory() {
-  // If on detail page — just switch to history tab
+  // If already on the detail page — just switch to the history tab
   const detailPage = document.getElementById('detailPage');
-  if (detailPage && detailPage.className.includes('visible')) {
+  if (detailPage.className.includes('visible')) {
     showTab('history');
     return;
   }
-  // If on home page — go to first token's detail and show history tab
-  if (TOKENS.length) {
-    goDetail(TOKENS[0].id).then(() => showTab('history'));
-  }
+  // Otherwise open the detail page straight to the (global) history log —
+  // no token needs to be active since the log spans all tokens
+  document.getElementById('homePage').className = 'page hidden-left';
+  document.getElementById('scannerPage').className = 'page hidden-right';
+  document.getElementById('whalePage').className = 'page hidden-right';
+  detailPage.className = 'page visible';
+  const bb = document.getElementById('backBtn');
+  bb.classList.add('show'); bb.classList.remove('ctx');
+  bb.textContent = '← BACK';
+  bb.onclick = goHome;
+  showTab('history');   // showTab persists the tab itself
 }
 
 function dismissGrade() {
