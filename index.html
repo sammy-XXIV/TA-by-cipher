@@ -2420,6 +2420,18 @@ function aiText(data) {
   return block.text.trim().replace(/```json|```/g, '').trim();
 }
 
+// Parse the JSON signal from an AI response, tolerating any stray prose the
+// model wraps around it (extract the outermost {...} as a fallback)
+function parseAISignal(data) {
+  const raw = aiText(data);
+  try { return JSON.parse(raw); }
+  catch (_) {
+    const m = raw.match(/\{[\s\S]*\}/);
+    if (!m) throw new Error('AI did not return a valid signal — try again');
+    return JSON.parse(m[0]);
+  }
+}
+
 async function runAnalysis() {
   if (!currentUser) { window.location.href='cipher_auth.html'; return; }
   if (!activeToken) { alert('Select a token first'); return; }
@@ -2777,8 +2789,7 @@ Respond ONLY with JSON (no markdown):
     if(!r.ok){const e=await r.json();throw new Error(e.error||'Server Error');}
     const data=await r.json();
     if(!data.content||!data.content[0]){throw new Error(typeof data.error==='string'?data.error:JSON.stringify(data.error)||'No response from AI — check API key on server');}
-    let raw=aiText(data);
-    const a=JSON.parse(raw);
+    const a=parseAISignal(data);
 
     // Fix ROI — recalculate correctly based on signal direction
     // Also auto-correct wrong direction entries
@@ -2831,7 +2842,7 @@ Respond ONLY with JSON (no markdown):
     out.innerHTML=`
       <div class="out-block" style="border-left:2px solid var(--accent3)">
         <div class="out-txt" style="color:var(--accent3)">ERROR: ${e.message}</div>
-        <div class="out-txt" style="margin-top:6px;color:var(--text3)">Make sure Render server is running.</div>
+        <div class="out-txt" style="margin-top:6px;color:var(--text3)">The analysis server may be busy — wait a moment and try again.</div>
       </div>`;
   }
   btn.disabled=false;btn.textContent='RUN ANALYSIS';
@@ -3167,7 +3178,8 @@ function startSignalTimer(a) {
       // Check if price is still near entry zone
       const entryPrice = parseFloat(a.entry?.toString().replace(/[^0-9.]/g,''));
       const currentPrice = activeToken?.price;
-      const atr = parseFloat(a.stop) ? Math.abs(parseFloat(a.entry) - parseFloat(a.stop)) / 1.5 : 0;
+      const stopPrice = parseFloat(a.stop?.toString().replace(/[^0-9.]/g,''));
+      const atr = stopPrice ? Math.abs(entryPrice - stopPrice) / 1.5 : 0;
       const nearEntry = entryPrice && currentPrice && atr
         ? Math.abs(currentPrice - entryPrice) < atr * 1.5
         : false;
@@ -3396,8 +3408,7 @@ Respond ONLY in JSON:
       body: JSON.stringify({prompt})
     });
     const data = await r.json();
-    const raw = aiText(data);
-    const result = JSON.parse(raw);
+    const result = parseAISignal(data);
 
     // Action labels
     const actionEmoji = result.action === 'RE_ENTRY' ? '🔁' : result.action === 'REVERSAL' ? '🔄' : '⏸';
