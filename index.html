@@ -2733,6 +2733,41 @@ VOLUME:
 - Strength: ${volumeStrength}
 
 ${(() => {
+  // ── EXHAUSTION / EXTENSION — where price sits in its larger move ──
+  const ext20   = e20[n-1] ? ((cp - e20[n-1]) / e20[n-1] * 100) : 0;
+  const extVwap = vwap ? ((cp - vwap) / vwap * 100) : 0;
+  const runUp   = swingLow  > 0 ? ((cp - swingLow)  / swingLow  * 100) : 0;
+  const runDn   = swingHigh > 0 ? ((swingHigh - cp) / swingHigh * 100) : 0;
+  const aboveUpper = cp > bm + 2*bstd;
+  const belowLower = cp < bm - 2*bstd;
+
+  const up = [];
+  if (ext20 > 8)     up.push(`price is ${ext20.toFixed(1)}% ABOVE EMA20 (stretched)`);
+  if (extVwap > 10)  up.push(`${extVwap.toFixed(1)}% above VWAP`);
+  if (aboveUpper)    up.push('trading above the upper Bollinger band (blow-off)');
+  if (rsi >= 70)     up.push(`RSI ${rsi} overbought`);
+  if (runUp > 40)    up.push(`already ran +${runUp.toFixed(0)}% off the recent swing low with no base`);
+
+  const dn = [];
+  if (ext20 < -8)    dn.push(`price is ${Math.abs(ext20).toFixed(1)}% BELOW EMA20 (stretched)`);
+  if (extVwap < -10) dn.push(`${Math.abs(extVwap).toFixed(1)}% below VWAP`);
+  if (belowLower)    dn.push('trading below the lower Bollinger band (capitulation)');
+  if (rsi <= 30)     dn.push(`RSI ${rsi} oversold`);
+  if (runDn > 40)    dn.push(`already fell -${runDn.toFixed(0)}% off the recent swing high`);
+
+  let read;
+  if (up.length >= 3)      read = 'EXHAUSTED TO THE UPSIDE — this is a late-stage, over-extended move. DO NOT chase LONG at these levels. A reversal is the higher-probability play: prefer a SHORT on confirmation, or NEUTRAL/wait for a pullback. Only go LONG on a fresh pullback to support/EMA, never at the highs.';
+  else if (dn.length >= 3) read = 'EXHAUSTED TO THE DOWNSIDE — over-extended capitulation. DO NOT chase SHORT here. A bounce is the higher-probability play: prefer a LONG on confirmation, or NEUTRAL/wait.';
+  else if (up.length || dn.length) read = 'Some extension but NOT yet exhausted — the trend can still continue. Trade WITH the trend and tighten risk; do not fade it yet.';
+  else read = 'Not extended — price sits in a normal range vs its moving averages. Trend-following is appropriate.';
+
+  const flags = [...up, ...dn];
+  return `EXHAUSTION / EXTENSION (where price is in its move — READ THIS BEFORE PICKING A DIRECTION):
+${flags.length ? flags.map(f => `- ${f}`).join('\n') : '- No extension signals'}
+- VERDICT: ${read}`;
+})()}
+
+${(() => {
   const rangePct = ((activeToken.high - activeToken.low) / activeToken.low * 100);
   const atrPct   = (atr / cp * 100);
   const price    = activeToken?.price || cp;
@@ -2780,6 +2815,13 @@ ${degenMode ? '- DEGEN: If momentum is strong, entry AT market is acceptable. Ch
   * If price already moved 2x ATR past key level → DO NOT CHASE — set entry at next support/resistance
   * Always specify in entry field: "LIMIT — wait for pullback" OR "MARKET — chase now" OR "WAIT — move extended, next entry at X"
 `}
+
+EXHAUSTION RULE — HIGHEST PRIORITY, OVERRIDES MOMENTUM:
+- Momentum being "up" is NOT a reason to go LONG. WHERE the move is matters more than which way it is pointing.
+- If the EXHAUSTION/EXTENSION verdict says EXHAUSTED TO THE UPSIDE: never LONG at the highs. The correct call is SHORT the reversal (with confirmation) or NEUTRAL. Chasing a blow-off top is the #1 way this tool loses.
+- If it says EXHAUSTED TO THE DOWNSIDE: never chase SHORT. Favor the bounce LONG or NEUTRAL.
+- If it says NOT yet exhausted: trade WITH the trend — do NOT fade a healthy trend just because RSI is elevated.
+- A token that just pumped hard and is over-extended is a SHORT/AVOID candidate, not a LONG. Treat late-stage parabolic moves as reversal setups.
 
 Respond ONLY with JSON (no markdown):
 {"signal":"LONG or SHORT${degenMode ? '' : ' or NEUTRAL'}","confidence":${degenMode ? '60-95' : '55-95'},"accuracy":55-92,"bias":"punchy uppercase one-liner${degenMode ? ' — aggressive' : ''}","reasoning":"3-4 sentences covering trend, momentum, volume, and key levels","caution":"${degenMode ? '1 sentence max — key risk only' : '1-2 sentences on specific caution flags'}","confirmation":"what needs to happen to confirm the signal","alternative":"what to do if signal fails","entry":"best entry price","target":"take profit price (${degenMode ? '2x' : '3x'} ATR from entry)","stop":"stop loss price (${degenMode ? '1x' : '1.5x'} ATR from entry)","rr_ratio":"risk reward ratio e.g. 1:2","roi":"expected ROI %","position_size":"recommended % of capital${degenMode ? ' — up to 15% on high conviction' : ''}","risk":"LOW or MEDIUM or HIGH","risk_reason":"one sentence explaining risk","sentiment_impact":"one sentence on Fear & Greed and funding rate impact"}`;
