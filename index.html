@@ -2699,6 +2699,19 @@ ANALYSIS MODE: SAFE
 - If ATR > 10% of price — flag HIGH risk, reduce size to 1-3%.
 `;
 
+  // Timeframe-scaled ATR multiples — ATR is a smaller % of price on low
+  // timeframes, so a flat 3x made 15M/5M targets far too tight (entry ≈ TP).
+  // Scale the multiple up as the timeframe shrinks; keep target:stop ~2:1.
+  const tfMult = {
+    '5M':  { t: degenMode ? 4   : 6,   s: degenMode ? 2    : 3    },
+    '15M': { t: degenMode ? 3.5 : 5,   s: degenMode ? 1.75 : 2.5  },
+    '1H':  { t: degenMode ? 3   : 4,   s: degenMode ? 1.5  : 2    },
+    '4H':  { t: degenMode ? 2.5 : 3,   s: degenMode ? 1.25 : 1.5  },
+    '1D':  { t: degenMode ? 2   : 3,   s: degenMode ? 1    : 1.5  },
+    '1W':  { t: degenMode ? 2   : 2.5, s: degenMode ? 1    : 1.25 },
+  };
+  const mult = tfMult[activeTimeframe] || { t: degenMode ? 2 : 3, s: degenMode ? 1 : 1.5 };
+
   const prompt=`You are CIPHER, elite AI crypto technical analyst. Analyze ${activeToken.symbol} using the provided data and give sharp actionable predictions.
 ${usingSimulated ? '\nWARNING: Chart data unavailable. Analysis based on SIMULATED data — lower confidence recommended.\n' : ''}
 ${lowCandleWarning ? `\nWARNING: ${lowCandleWarning} — keep confidence below 70% and widen SL.\n` : ''}
@@ -2824,7 +2837,7 @@ EXHAUSTION RULE — HIGHEST PRIORITY, OVERRIDES MOMENTUM:
 - A token that just pumped hard and is over-extended is a SHORT/AVOID candidate, not a LONG. Treat late-stage parabolic moves as reversal setups.
 
 Respond ONLY with JSON (no markdown):
-{"signal":"LONG or SHORT${degenMode ? '' : ' or NEUTRAL'}","confidence":${degenMode ? '60-95' : '55-95'},"accuracy":55-92,"bias":"punchy uppercase one-liner${degenMode ? ' — aggressive' : ''}","reasoning":"3-4 sentences covering trend, momentum, volume, and key levels","caution":"${degenMode ? '1 sentence max — key risk only' : '1-2 sentences on specific caution flags'}","confirmation":"what needs to happen to confirm the signal","alternative":"what to do if signal fails","entry":"best entry price","target":"take profit price (${degenMode ? '2x' : '3x'} ATR from entry)","stop":"stop loss price (${degenMode ? '1x' : '1.5x'} ATR from entry)","rr_ratio":"risk reward ratio e.g. 1:2","roi":"expected ROI %","position_size":"recommended % of capital${degenMode ? ' — up to 15% on high conviction' : ''}","risk":"LOW or MEDIUM or HIGH","risk_reason":"one sentence explaining risk","sentiment_impact":"one sentence on Fear & Greed and funding rate impact"}`;
+{"signal":"LONG or SHORT${degenMode ? '' : ' or NEUTRAL'}","confidence":${degenMode ? '60-95' : '55-95'},"accuracy":55-92,"bias":"punchy uppercase one-liner${degenMode ? ' — aggressive' : ''}","reasoning":"3-4 sentences covering trend, momentum, volume, and key levels","caution":"${degenMode ? '1 sentence max — key risk only' : '1-2 sentences on specific caution flags'}","confirmation":"what needs to happen to confirm the signal","alternative":"what to do if signal fails","entry":"best entry price","target":"take profit price (${mult.t}x ATR from entry — this is calibrated for ${activeTimeframe}, do not tighten it)","stop":"stop loss price (${mult.s}x ATR from entry)","rr_ratio":"risk reward ratio e.g. 1:2","roi":"expected ROI %","position_size":"recommended % of capital${degenMode ? ' — up to 15% on high conviction' : ''}","risk":"LOW or MEDIUM or HIGH","risk_reason":"one sentence explaining risk","sentiment_impact":"one sentence on Fear & Greed and funding rate impact"}`;
 
   try {
     const r=await fetch(`${SERVER}/analyze`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt})});
