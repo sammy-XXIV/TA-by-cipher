@@ -4,6 +4,17 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>CIPHER</title>
+<script>
+  // Decode the clean path after a 404.html SPA redirect (/?/scan -> /scan).
+  (function(l){
+    if (l.search[1] === '/') {
+      var decoded = l.search.slice(1).split('&').map(function(s){
+        return s.replace(/~and~/g, '&');
+      }).join('?');
+      window.history.replaceState(null, null, l.pathname.slice(0, -1) + decoded + l.hash);
+    }
+  }(window.location));
+</script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&family=Orbitron:wght@700;900&family=DM+Sans:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
@@ -716,6 +727,11 @@ let analysisHistory = JSON.parse(localStorage.getItem('cipherHistory') || '[]');
 async function initAuth() {
   const { data: { session } } = await sb.auth.getSession();
   if (!session) {
+    // Remember where they were headed so we can land there after login
+    const here = location.pathname;
+    if (here !== '/' && here !== '/index.html') {
+      try { localStorage.setItem('cipher_post_login', here); } catch(e) {}
+    }
     window.location.href = 'cipher_auth.html';
     return false;
   }
@@ -761,12 +777,14 @@ function goHome() {
   const whaleBtn = document.getElementById('whaleNavBtn');
   if (whaleBtn) { whaleBtn.textContent = 'WHALES'; whaleBtn.onclick = showWhalePage; }
   savePageState('home');
+  syncURL('home');
 }
 
 async function goDetail(id, origin = 'home') {
   activeToken = TOKENS.find(t => t.id === id);
   if (!activeToken) return;
   detailOrigin = origin;
+  syncURL('detail', activeToken.symbol);
   zoomLevel = 1;
   tooltipCandle = null;
   document.getElementById('homePage').className = 'page hidden-left';
@@ -1236,6 +1254,7 @@ function showWhalePage() {
   if (btn) { btn.textContent = 'CLOSE'; btn.onclick = goHome; }
   if (!whaleData.length) refreshWhales();
   savePageState('whale');
+  syncURL('whale');
 }
 
 function setWhaleFilter(filter) {
@@ -1796,6 +1815,7 @@ function showScannerPage() {
   const btn = document.getElementById('scanNavBtn');
   if (btn) { btn.textContent = 'CLOSE'; btn.onclick = goHome; }
   savePageState('scanner');
+  syncURL('scanner');
 }
 
 let scanTokens = [];
@@ -1906,6 +1926,7 @@ function openHistory() {
   bb.textContent = '← BACK';
   bb.onclick = goHome;
   showTab('history');   // showTab persists the tab itself
+  syncURL('history');
 }
 
 function dismissGrade() {
@@ -2629,6 +2650,22 @@ async function runAnalysis() {
                          lastVol2 > avgVol2      ? 'ABOVE AVERAGE' :
                          lastVol2 < avgVol2*0.5  ? 'LOW (weak signal)' : 'AVERAGE';
 
+  // ── Volume behavior — DIRECTIONAL. Volume alone is not bullish; who it
+  // favors depends on whether it lands on up-closes or down-closes, and where
+  // price is. High volume into a top = distribution (sellers dumping), bearish.
+  const volWin = Math.min(6, n - 1);
+  let upVol = 0, dnVol = 0;
+  for (let i = n - volWin; i < n; i++) {
+    if (closes[i] >= closes[i-1]) upVol += freshVols[i]; else dnVol += freshVols[i];
+  }
+  const volControl  = upVol > dnVol * 1.3 ? 'BUYERS' : dnVol > upVol * 1.3 ? 'SELLERS' : 'MIXED';
+  const volClimax   = lastVol2 > avgVol2 * 2;
+  const recentVol   = freshVols.slice(-3).reduce((a,b)=>a+b,0) / 3;
+  const priorVol    = n >= 9 ? freshVols.slice(-9,-3).reduce((a,b)=>a+b,0) / 6 : recentVol;
+  const volDrying   = recentVol < priorVol * 0.7;
+  const volBuilding = recentVol > priorVol * 1.3;
+  const priceUpWin  = cp >= closes[Math.max(0, n - 1 - volWin)];
+
   // Use calculated values
   const rsi  = freshRsi;
   const macd = freshMacd;
@@ -2745,6 +2782,20 @@ VOLATILITY:
 VOLUME:
 - Strength: ${volumeStrength}
 
+VOLUME BEHAVIOR (who is in control — volume ALONE is not a direction):
+- Control (last ${volWin} candles): ${volControl}${volControl==='BUYERS'?' — buyers stepping in':volControl==='SELLERS'?' — sellers in control':' — no clear side'}
+- ${volClimax ? 'CLIMAX spike — latest volume is 2x+ the average' : 'No climax spike'}
+- Trend: ${volBuilding ? 'BUILDING' : volDrying ? 'DRYING UP' : 'steady'}
+- READ: ${(() => {
+  if (priceUpWin && volControl === 'SELLERS') return 'DISTRIBUTION — price is up but the volume is on SELL candles. Big players are unloading into strength. BEARISH — do NOT read this volume as a long signal.';
+  if (priceUpWin && volClimax)                return 'BLOW-OFF risk — a climax volume spike on an up-move after a run usually marks the TOP, not continuation. High volume here is exhaustion, not fuel. Do NOT chase long.';
+  if (priceUpWin && volControl === 'BUYERS')  return 'Buyers still in control on the up-move — trend can continue, but watch for a climax/distribution flip.';
+  if (!priceUpWin && volControl === 'BUYERS') return 'ACCUMULATION — price is at/near the lows but volume is on BUY candles. Buyers are stepping in against the downtrend. Bullish reversal tell — favor the bounce, do NOT chase short.';
+  if (!priceUpWin && volDrying)               return 'SELLING EXHAUSTION — the down-move is losing volume, sellers are drying up. Reversal risk is building — do NOT chase short here.';
+  if (!priceUpWin && volClimax && volControl === 'SELLERS') return 'CAPITULATION flush — a climax on heavy selling can mark a bottom, but wait for a reversal candle before longing.';
+  return 'Volume is merely confirming the current move — no reversal signal.';
+})()}
+
 ${(() => {
   // ── EXHAUSTION / EXTENSION — where price sits in its larger move ──
   const ext20   = e20[n-1] ? ((cp - e20[n-1]) / e20[n-1] * 100) : 0;
@@ -2760,6 +2811,8 @@ ${(() => {
   if (aboveUpper)    up.push('trading above the upper Bollinger band (blow-off)');
   if (rsi >= 70)     up.push(`RSI ${rsi} overbought`);
   if (runUp > 40)    up.push(`already ran +${runUp.toFixed(0)}% off the recent swing low with no base`);
+  if (priceUpWin && volControl === 'SELLERS') up.push('DISTRIBUTION — up-move but volume is on SELL candles (sellers unloading into strength)');
+  else if (priceUpWin && volClimax)           up.push('CLIMAX volume on the up-move (blow-off / exhaustion, not fuel)');
 
   const dn = [];
   if (ext20 < -8)    dn.push(`price is ${Math.abs(ext20).toFixed(1)}% BELOW EMA20 (stretched)`);
@@ -2767,6 +2820,8 @@ ${(() => {
   if (belowLower)    dn.push('trading below the lower Bollinger band (capitulation)');
   if (rsi <= 30)     dn.push(`RSI ${rsi} oversold`);
   if (runDn > 40)    dn.push(`already fell -${runDn.toFixed(0)}% off the recent swing high`);
+  if (!priceUpWin && volControl === 'BUYERS') dn.push('ACCUMULATION — at the lows but volume is on BUY candles (buyers stepping in)');
+  else if (!priceUpWin && volDrying)          dn.push('selling volume DRYING UP on the lows (seller exhaustion)');
 
   let read;
   if (up.length >= 3)      read = 'EXHAUSTED TO THE UPSIDE — this is a late-stage, over-extended move. DO NOT chase LONG at these levels. A reversal is the higher-probability play: prefer a SHORT on confirmation, or NEUTRAL/wait for a pullback. Only go LONG on a fresh pullback to support/EMA, never at the highs.';
@@ -2835,6 +2890,12 @@ EXHAUSTION RULE — HIGHEST PRIORITY, OVERRIDES MOMENTUM:
 - If it says EXHAUSTED TO THE DOWNSIDE: never chase SHORT. Favor the bounce LONG or NEUTRAL.
 - If it says NOT yet exhausted: trade WITH the trend — do NOT fade a healthy trend just because RSI is elevated.
 - A token that just pumped hard and is over-extended is a SHORT/AVOID candidate, not a LONG. Treat late-stage parabolic moves as reversal setups.
+
+VOLUME RULE — read WITH the VOLUME BEHAVIOR section above, never in isolation:
+- Volume by itself is NOT bullish. High volume while price is UP near a top is usually DISTRIBUTION (sellers dumping into strength) — that is BEARISH, not a reason to go long. A pumped token can have heavy volume and still bleed.
+- Only treat volume as bullish when buyers are in control AND price is basing/reclaiming support (accumulation).
+- Volume drying up into the lows, or a capitulation flush, is a REVERSAL tell — do not chase short there.
+- Let the VOLUME BEHAVIOR read confirm or veto your direction: distribution/blow-off at the highs confirms a SHORT; accumulation/exhaustion at the lows confirms a LONG.
 
 Respond ONLY with JSON (no markdown):
 {"signal":"LONG or SHORT${degenMode ? '' : ' or NEUTRAL'}","confidence":${degenMode ? '60-95' : '55-95'},"accuracy":55-92,"bias":"punchy uppercase one-liner${degenMode ? ' — aggressive' : ''}","reasoning":"3-4 sentences covering trend, momentum, volume, and key levels","caution":"${degenMode ? '1 sentence max — key risk only' : '1-2 sentences on specific caution flags'}","confirmation":"what needs to happen to confirm the signal","alternative":"what to do if signal fails","entry":"best entry price","target":"take profit price (${mult.t}x ATR from entry — this is calibrated for ${activeTimeframe}, do not tighten it)","stop":"stop loss price (${mult.s}x ATR from entry)","rr_ratio":"risk reward ratio e.g. 1:2","roi":"expected ROI %","position_size":"recommended % of capital${degenMode ? ' — up to 15% on high conviction' : ''}","risk":"LOW or MEDIUM or HIGH","risk_reason":"one sentence explaining risk","sentiment_impact":"one sentence on Fear & Greed and funding rate impact"}`;
@@ -3682,6 +3743,38 @@ function savePageState(page) {
   } catch(e) {}
 }
 
+// ============================================================
+// URL ROUTING — clean paths: /scan, /whales, /log, /token/BTC
+// ============================================================
+const ROUTE_OF = { home:'/', scanner:'/scan', whale:'/whales', history:'/log' };
+
+// Update the address bar to match the current view (skip if already there)
+function syncURL(view, sym) {
+  const path = view === 'detail'
+    ? '/token/' + String(sym || '').toLowerCase()
+    : (ROUTE_OF[view] || '/');
+  if (path !== location.pathname) history.pushState({ view, sym }, '', path);
+}
+
+// Render the view that matches the current URL (on load + back/forward)
+async function routeFromURL() {
+  const p = (location.pathname.replace(/\/+$/, '') || '/').replace(/^\/index\.html$/, '/');
+  if (p === '/scan')   { showScannerPage(); return; }
+  if (p === '/whales') { showWhalePage();   return; }
+  if (p === '/log')    { openHistory();     return; }
+  const m = p.match(/^\/token\/([a-z0-9._-]+)$/i);
+  if (m) {
+    const sym = m[1].toUpperCase();
+    const tok = TOKENS.find(t => t.symbol === sym);
+    if (tok) await goDetail(tok.id); else await loadScanToken(sym);
+    return;
+  }
+  if (p !== '/') history.replaceState(null, '', '/');
+  goHome();
+}
+
+window.addEventListener('popstate', routeFromURL);
+
 // Restore state after prices load
 async function restorePageState() {
   let state = null;
@@ -3704,7 +3797,12 @@ async function restorePageState() {
 // INIT — check auth first then load
 initAuth().then(ok => {
   if (!ok) return;
-  fetchPrices().then(() => restorePageState());
+  // If we bounced through login, restore the route they originally requested
+  try {
+    const intended = localStorage.getItem('cipher_post_login');
+    if (intended) { localStorage.removeItem('cipher_post_login'); history.replaceState(null, '', intended); }
+  } catch(e) {}
+  fetchPrices().then(() => routeFromURL());
   setInterval(fetchPrices, 60000);
 });
 </script>
