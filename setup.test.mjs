@@ -45,3 +45,18 @@ const cs = [
 assert.equal(sessionVwap(cs), (11 * 10 + 14 * 30) / 40)
 assert.equal(sessionVwap([{ high: 1, low: 1, close: 1, vol: 1 }]), null)   // no timestamps → caller falls back
 console.log('sessionVwap: all pass')
+
+// crowdingRead(): which side is crowded, from Binance positioning + funding (% per 8h)
+const crSrc = html.match(/function crowdingRead\([\s\S]*?\r?\n}\r?\n/)?.[0]
+assert.ok(crSrc, 'crowdingRead() not found in index.html')
+const crowdingRead = new Function(`${crSrc}; return crowdingRead`)()
+const cys = { accounts_long_pct: 73.0, accounts_long_pct_24h: 71.7, top_long_pct: 59.5, top_long_pct_24h: 58.9, taker_ratio_4h: 0.94 }
+assert.match(crowdingRead(cys, 0.005), /CROWDED LONGS/)
+assert.match(crowdingRead(cys, 0.005), /73% of accounts long \(rising/)
+assert.match(crowdingRead({ ...cys, accounts_long_pct: 30, accounts_long_pct_24h: 35, top_long_pct: 45 }, -0.01), /CROWDED SHORTS/)
+assert.match(crowdingRead({ ...cys, accounts_long_pct: 52, top_long_pct: 55 }, -0.05), /CROWDED SHORTS/)       // funding alone
+const nil = { accounts_long_pct: 46.1, accounts_long_pct_24h: 37.3, top_long_pct: 53.9, top_long_pct_24h: 63.7, taker_ratio_4h: 1.0 }
+assert.match(crowdingRead(nil, 0.005), /BALANCED/)
+assert.match(crowdingRead({ ...cys, top_long_pct: 42 }, 0.005), /top traders lean the other way/)
+assert.equal(crowdingRead(null, 0.005), null)
+console.log('crowdingRead: all pass')

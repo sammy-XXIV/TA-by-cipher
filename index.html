@@ -2633,6 +2633,20 @@ function sessionVwap(candles) {
   return v > 0 ? pv / v : null
 }
 
+// Which side is crowded. pos = Binance /positioning data, fundingPct = funding % per 8h.
+// Crowded side = squeeze fuel: if price moves against it, its stops/liquidations push price further.
+function crowdingRead(pos, fundingPct) {
+  if (!pos) return null
+  const acc = pos.accounts_long_pct, top = pos.top_long_pct, f = fundingPct ?? 0
+  const trend = acc > pos.accounts_long_pct_24h + 1 ? 'rising' : acc < pos.accounts_long_pct_24h - 1 ? 'falling' : 'steady'
+  const facts = `${Math.round(acc)}% of accounts long (${trend} from ${Math.round(pos.accounts_long_pct_24h)}% 24h ago), top traders ${Math.round(top)}% long, funding ${f.toFixed(4)}%, taker buy/sell 4h ${pos.taker_ratio_4h}`
+  const longs = acc >= 65 || f >= 0.03, shorts = acc <= 35 || f <= -0.03
+  const split = (longs && top < 50) || (shorts && top > 50) ? ' — top traders lean the other way (smart money vs crowd)' : ''
+  if (longs && !shorts) return `CROWDED LONGS — ${facts}${split}. Long-squeeze risk: if support breaks, longs become forced sellers. Lower confidence on LONGs; a SHORT on a support break has fuel.`
+  if (shorts && !longs) return `CROWDED SHORTS — ${facts}${split}. Short-squeeze risk: if resistance breaks, shorts become forced buyers. Lower confidence on SHORTs; a LONG on a resistance break has fuel.`
+  return `BALANCED — no clearly crowded side (${facts}).`
+}
+
 // What open interest vs price says about the last 24h move (null when OI change is unknown)
 function oiRead(oiChg, priceChg) {
   if (oiChg == null) return null
@@ -2885,13 +2899,13 @@ async function runAnalysis() {
 
 
   // Funding rate — server tries Binance futures then MEXC perps; price check rejects a different coin on the same ticker
-  let fundingRate = 'N/A';
+  let fundingRate = 'N/A', fundingPct = null;
   try {
     const frRes = await fetch(`${SERVER}/funding?symbol=${activeToken.symbol}&price=${cp}`).then(r=>r.json());
     if (typeof frRes.rate === 'number') {
-      const fr = frRes.rate * 100;
+      const fr = frRes.rate * 100; fundingPct = fr;
       // positive funding = longs pay shorts = crowded longs = LONG squeeze risk (and vice versa)
-      fundingRate = `${fr.toFixed(4)}% (${frRes.source}) ${fr > 0.1 ? '(OVERLEVERAGED LONG — long squeeze risk)' : fr < -0.1 ? '(OVERLEVERAGED SHORT — short squeeze risk)' : '(NEUTRAL)'}`;
+      fundingRate = `${fr.toFixed(4)}% (${frRes.source}) ${fr >= 0.03 ? '(LONGS CROWDED — long squeeze risk)' : fr <= -0.03 ? '(SHORTS CROWDED — short squeeze risk)' : '(NEUTRAL)'}`;
     }
   } catch(e) {}
 
@@ -2906,6 +2920,13 @@ async function runAnalysis() {
       if (read) oiLines += `
 - OI vs price (24h, price ${pc(activeToken.change)}): ${read}`;
     }
+  } catch(e) {}
+
+  // Positioning — Binance long/short account + top-trader ratios and taker flow
+  let crowding = null;
+  try {
+    const pos = await fetch(`${SERVER}/positioning?symbol=${activeToken.symbol}&price=${cp}`).then(r => r.ok ? r.json() : null);
+    crowding = crowdingRead(pos, fundingPct);
   } catch(e) {}
 
   // Previous Day High/Low/Close (institutional levels)
@@ -2986,6 +3007,7 @@ MARKET SENTIMENT:
 - Fear & Greed Index: ${fearGreed}${fearGreedValue !== '' ? (fearGreedValue < 25 ? ' ← Extreme fear, potential buy zone' : fearGreedValue > 75 ? ' ← Extreme greed, potential sell zone' : '') : ''}
 - Funding Rate: ${fundingRate}
 ${oiLines}
+- Crowding: ${crowding || 'N/A (no Binance futures positioning data)'}
 - Previous Day Levels: ${pdLevels}
 
 TREND:
@@ -3119,6 +3141,7 @@ VOLUME RULE — read WITH the VOLUME BEHAVIOR section above, never in isolation:
 - Volume by itself is NOT bullish. High volume while price is UP near a top is usually DISTRIBUTION (sellers dumping into strength) — that is BEARISH, not a reason to go long. A pumped token can have heavy volume and still bleed.
 - Only treat volume as bullish when buyers are in control AND price is basing/reclaiming support (accumulation).
 - Volume drying up into the lows, or a capitulation flush, is a REVERSAL tell — do not chase short there.
+- CROWDING: a crowded side is squeeze fuel. Never treat "most traders are long" as a reason to go long. Trading WITH a crowded side needs lower confidence; trading AGAINST it on a confirmed break has extra fuel.
 - DERIVATIVES: OI rising with the move = real conviction; a move on falling OI (short covering / long liquidation) is weaker and more likely to reverse. Use it to adjust confidence, not to pick the direction.
 - Let the VOLUME BEHAVIOR read confirm or veto your direction: distribution/blow-off at the highs confirms a SHORT; accumulation/exhaustion at the lows confirms a LONG.
 
