@@ -3253,10 +3253,20 @@ async function downloadCard(btn) {
       document.head.appendChild(s);
     });
     const canvas = await html2canvas(card, { backgroundColor: '#050e18', scale: 2, logging: false });
-    const link = document.createElement('a');
-    link.download = `cipher-${card.dataset.name.toLowerCase()}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
+    const name = `cipher-${card.dataset.name.toLowerCase()}.png`;
+    const png = canvas.toDataURL('image/png');
+    const cap = window.Capacitor;
+    if (cap?.isNativePlatform?.()) {
+      // Android app WebView ignores <a download>: write to cache, then open the share sheet
+      const { Filesystem, Share } = cap.Plugins;
+      const { uri } = await Filesystem.writeFile({ path: name, data: png.split(',')[1], directory: 'CACHE' });
+      await Share.share({ title: 'CIPHER signal', files: [uri] });
+    } else {
+      const link = document.createElement('a');
+      link.download = name;
+      link.href = png;
+      link.click();
+    }
   } catch (e) {
     console.error('Card download failed:', e);
   }
