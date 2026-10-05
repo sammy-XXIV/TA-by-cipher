@@ -2609,6 +2609,42 @@ function aiText(data) {
   return block.text.trim().replace(/```json|```/g, '').trim();
 }
 
+// "No setup" check: trend (EMA20/50), VWAP and momentum (MACD+RSI) each vote bull/bear/flat.
+// Any bull vote against any bear vote = conflicting picture → no trade. Returns the reason, or null.
+function setupConflict({ cp, e20, e50, vwap, macd, rsi }) {
+  const votes = {
+    trend:    cp > e20 && cp > e50 ? 1 : cp < e20 && cp < e50 ? -1 : 0,
+    VWAP:     cp > vwap ? 1 : cp < vwap ? -1 : 0,
+    momentum: macd > 0 && rsi > 50 ? 1 : macd < 0 && rsi < 50 ? -1 : 0,
+  }
+  const bull = Object.keys(votes).filter(k => votes[k] > 0)
+  const bear = Object.keys(votes).filter(k => votes[k] < 0)
+  return bull.length && bear.length ? `${bull.join(' + ')} bullish but ${bear.join(' + ')} bearish` : null
+}
+
+// Session VWAP: anchored at 00:00 UTC of the latest candle's day (the standard intraday VWAP).
+// Returns null when candles have no timestamps, so the caller can fall back to the window VWAP.
+function sessionVwap(candles) {
+  const last = candles[candles.length - 1]
+  if (!last || !last.t) return null
+  const start = Math.floor(last.t / 86400000) * 86400000
+  let pv = 0, v = 0
+  for (const c of candles) if (c.t >= start) { pv += (c.high + c.low + c.close) / 3 * c.vol; v += c.vol }
+  return v > 0 ? pv / v : null
+}
+
+// What open interest vs price says about the last 24h move (null when OI change is unknown)
+function oiRead(oiChg, priceChg) {
+  if (oiChg == null) return null
+  if (Math.abs(oiChg) < 2) return 'OI flat — no strong new positioning either way'
+  if (priceChg >= 0) return oiChg > 0
+    ? 'NEW LONGS — OI rising with price: fresh money behind the move (but crowded longs can be squeezed if it stalls)'
+    : 'SHORT COVERING — price up while OI falls: shorts closing, not new buyers; these rallies tend to fade'
+  return oiChg > 0
+    ? 'NEW SHORTS — OI rising while price falls: sellers adding, real downside pressure (squeeze fuel if it reverses)'
+    : 'LONG LIQUIDATION — price and OI both falling: longs exiting; selling may be close to exhausted'
+}
+
 // Parse the JSON signal from an AI response, tolerating any stray prose the
 // model wraps around it (extract the outermost {...} as a fallback)
 function parseAISignal(data) {
@@ -2667,7 +2703,7 @@ async function runAnalysis() {
       if (r.ok) {
         const d = await r.json();
         if (d.candles && d.candles.length) {
-          freshRaw = d.candles.map(c => [null, c.o, c.h, c.l, c.c, c.v]);
+          freshRaw = d.candles.map(c => [c.t, c.o, c.h, c.l, c.c, c.v]);
           dataSource = `${d.source} (FRESH via server)`;
           if (d.warning) lowCandleWarning = d.warning;
           if (d.candles.length < 50) lowCandleWarning = `Only ${d.candles.length} candles — indicators may be inaccurate`;
@@ -2686,6 +2722,7 @@ async function runAnalysis() {
 
     if (freshRaw) {
       analysisChartData = freshRaw.map(c => ({
+        t: c[0] ? +c[0] : null,
         open: parseFloat(c[1]), high: parseFloat(c[2]),
         low: parseFloat(c[3]), close: parseFloat(c[4]),
         vol: parseFloat(c[5]),
@@ -2753,17 +2790,23 @@ async function runAnalysis() {
     freshAtr = fatrSum / (n - atrStart);
   } catch(e) {}
 
-  // ── VWAP (from fresh candles) ──
+  // ── VWAP: rolling over the last 30 candles (1D/1W); intraday is replaced by session VWAP below ──
+  // (all 200 analysis candles would average ~200 days of price — meaningless for 1D)
   let freshVwap = closes[n-1];
   try {
     let cumTPV = 0, cumVol = 0;
-    for (let i = 0; i < n; i++) {
+    for (let i = Math.max(0, n - 30); i < n; i++) {
       const tp = (freshHighs[i] + freshLows[i] + closes[i]) / 3;
       cumTPV += tp * freshVols[i];
       cumVol += freshVols[i];
     }
     if (cumVol > 0) freshVwap = cumTPV / cumVol;
   } catch(e) {}
+  // Intraday timeframes use today's session VWAP (what traders and charts use); 1D/1W keep the window VWAP
+  const intraday = ['5M','15M','1H','4H'].includes(activeTimeframe);
+  const sVwap = intraday ? sessionVwap(analysisChartData) : null;
+  if (sVwap) freshVwap = sVwap;
+  const vwapLabel = sVwap ? 'VWAP (session, from 00:00 UTC)' : 'VWAP (last 30 candles)';
 
   // ── EMA 20/50 — with edge case handling ──
   const e20 = n >= 20 ? ema(closes, 20) : ema(closes, n);
@@ -2852,6 +2895,19 @@ async function runAnalysis() {
     }
   } catch(e) {}
 
+  // Open interest — Binance history (4h/24h change) or MEXC current; price check rejects a different coin
+  let oiLines = '- Open interest: N/A';
+  try {
+    const oi = await fetch(`${SERVER}/oi?symbol=${activeToken.symbol}&price=${cp}`).then(r=>r.json());
+    if (oi.oi_usd) {
+      const pc = v => v == null ? 'n/a' : `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`;
+      oiLines = `- Open interest: $${(oi.oi_usd/1e6).toFixed(1)}M (${oi.source}) — 4h ${pc(oi.change_4h)}, 24h ${pc(oi.change_24h)}`;
+      const read = oiRead(oi.change_24h, activeToken.change);
+      if (read) oiLines += `
+- OI vs price (24h, price ${pc(activeToken.change)}): ${read}`;
+    }
+  } catch(e) {}
+
   // Previous Day High/Low/Close (institutional levels)
   let pdLevels = 'N/A';
   try {
@@ -2895,7 +2951,7 @@ ANALYSIS MODE: DEGEN 🔥
 ` : `
 ANALYSIS MODE: SAFE
 - Only give HIGH confidence (80%+) when trend, momentum AND volume all agree.
-- NEUTRAL should be RARE — only use when LONG and SHORT are perfectly balanced.
+- CONFLICT RULE: if trend (EMA20/50), VWAP and momentum (MACD/RSI) point in different directions, there is NO SETUP — signal NEUTRAL, confidence below 60. Do not pick a side from a mixed picture. (Exception: an EXHAUSTED verdict allows the reversal trade.)
 - When ADX < 20 (ranging): give LOW confidence (55-65%) directional signal instead of NEUTRAL.
 - If data is limited (few candles), give directional signal with lower confidence 55-65%.
 - Position size: max 20% on high conviction, 5-10% on medium.
@@ -2929,12 +2985,13 @@ DATA SOURCE: ${dataSource}
 MARKET SENTIMENT:
 - Fear & Greed Index: ${fearGreed}${fearGreedValue !== '' ? (fearGreedValue < 25 ? ' ← Extreme fear, potential buy zone' : fearGreedValue > 75 ? ' ← Extreme greed, potential sell zone' : '') : ''}
 - Funding Rate: ${fundingRate}
+${oiLines}
 - Previous Day Levels: ${pdLevels}
 
 TREND:
 - EMA20: ${fmt(e20[n-1])} — price ${cp>e20[n-1]?'ABOVE (bullish)':'BELOW (bearish)'}
 - EMA50: ${fmt(e50[n-1])} — price ${cp>e50[n-1]?'ABOVE (bullish)':'BELOW (bearish)'}
-- VWAP: ${fmt(vwap)} — price ${cp>vwap?'ABOVE (bullish)':'BELOW (bearish)'}
+- ${vwapLabel}: ${fmt(vwap)} — price ${cp>vwap?'ABOVE (bullish)':'BELOW (bearish)'}
 - ADX(14): ${adx === null ? 'N/A (too few candles)' : `${adx} ${adx>25?'(STRONG TREND — trade it)':adx>20?'(DEVELOPING TREND)':'(WEAK/RANGING — avoid breakouts)'}`}
 
 MOMENTUM:
@@ -3062,6 +3119,7 @@ VOLUME RULE — read WITH the VOLUME BEHAVIOR section above, never in isolation:
 - Volume by itself is NOT bullish. High volume while price is UP near a top is usually DISTRIBUTION (sellers dumping into strength) — that is BEARISH, not a reason to go long. A pumped token can have heavy volume and still bleed.
 - Only treat volume as bullish when buyers are in control AND price is basing/reclaiming support (accumulation).
 - Volume drying up into the lows, or a capitulation flush, is a REVERSAL tell — do not chase short there.
+- DERIVATIVES: OI rising with the move = real conviction; a move on falling OI (short covering / long liquidation) is weaker and more likely to reverse. Use it to adjust confidence, not to pick the direction.
 - Let the VOLUME BEHAVIOR read confirm or veto your direction: distribution/blow-off at the highs confirms a SHORT; accumulation/exhaustion at the lows confirms a LONG.
 
 Respond ONLY with JSON (no markdown):
@@ -3073,6 +3131,15 @@ Respond ONLY with JSON (no markdown):
     const data=await r.json();
     if(!data.content||!data.content[0]){throw new Error(typeof data.error==='string'?data.error:JSON.stringify(data.error)||'No response from AI — check API key on server');}
     const a=parseAISignal(data);
+
+    // Enforce "no setup" in SAFE mode — the AI does not always obey the conflict rule
+    const conflict = degenMode ? null : setupConflict({ cp, e20: e20[n-1], e50: e50[n-1], vwap, macd, rsi });
+    if (conflict && a.signal !== 'NEUTRAL' && !/VERDICT: EXHAUSTED TO THE/.test(prompt)) {
+      a.signal = 'NEUTRAL';
+      a.bias = 'NO SETUP — ' + conflict.toUpperCase();
+      a.confidence = Math.min(+a.confidence || 55, 55);
+      a.caution = `Signals conflict (${conflict}). Wait for them to line up before taking a trade. ` + (a.caution || '');
+    }
 
     // Fix ROI — recalculate correctly based on signal direction
     // Also auto-correct wrong direction entries
