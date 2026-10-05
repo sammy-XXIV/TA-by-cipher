@@ -350,11 +350,6 @@
   .an-txt { font-size:13px; line-height:1.6; color:var(--text); }
   .an-panel.caution .an-txt, .an-panel.confirm .an-txt { color:var(--text); }
   .an-note { font-size:12px; color:var(--text3); margin-top:6px; line-height:1.5; }
-  .an-meter { margin-top:10px; }
-  .an-meter-top { display:flex; justify-content:space-between; font-size:10px; font-weight:600; letter-spacing:1.5px; color:var(--text3); margin-bottom:5px; }
-  .an-meter-top b { color:var(--accent4); }
-  .an-meter-bar { height:4px; background:var(--border2); overflow:hidden; }
-  .an-meter-bar div { height:100%; background:linear-gradient(90deg, var(--accent4), #e8a80066); transform-origin:left; }
 
   .an-timer { --c:var(--accent); }
   .tm-val { font-family:'Orbitron',sans-serif; font-size:24px; font-weight:700; color:var(--text3); font-variant-numeric:tabular-nums; }
@@ -1143,7 +1138,7 @@ async function fetchPrices() {
     let binancePrices = {};
     if (binanceRes.status === 'fulfilled' && Array.isArray(binanceRes.value)) {
       binanceRes.value.forEach(t => {
-        if (t.symbol?.endsWith('USDT')) {
+        if (t.symbol?.endsWith('USDT') && Date.now() - t.closeTime < 3600000) {
           const sym = t.symbol.replace('USDT','');
           binancePrices[sym] = { price: parseFloat(t.lastPrice), change: parseFloat(t.priceChangePercent), high: parseFloat(t.highPrice), low: parseFloat(t.lowPrice) };
         }
@@ -1208,7 +1203,9 @@ async function fetchPrices() {
           price = sp.price; change = sp.change; high = sp.high; low = sp.low;
           source = `server (${sp.sources} exchanges)`;
         } else {
-          const prices = [binancePrices[sym], bybitPrices[sym], okxPrices[sym], hlPrices[sym], mexcPrices[sym]].filter(p => p && p.price > 0);
+          const quotes = [binancePrices[sym], mexcPrices[sym], bybitPrices[sym], okxPrices[sym], hlPrices[sym]].filter(p => p && p.price > 0);
+          // same rule as the server: first quote in priority order is the reference; quotes >20% away are a different coin on the same ticker
+          const prices = quotes.filter(p => Math.abs(p.price - quotes[0].price) / quotes[0].price <= 0.2);
           if (prices.length > 0) {
             price  = prices.reduce((s,p)=>s+p.price,0)/prices.length;
             change = prices.filter(p=>p.change!==0).reduce((s,p,_,a)=>s+p.change/a.length,0) || c.price_change_percentage_24h || 0;
@@ -1398,7 +1395,6 @@ function saveToHistory(a, token, timeframe) {
     timeframe,
     signal:     a.signal,
     confidence: a.confidence,
-    accuracy:   a.accuracy || '',
     entry:      a.entry || entryPrice,
     target,
     stop,
@@ -2661,7 +2657,7 @@ async function runAnalysis() {
   try {
     const intervalMap = {'5M':'5m','15M':'15m','1H':'1h','4H':'4h','1D':'1d','1W':'1w'};
     const interval = intervalMap[activeTimeframe] || '1h';
-    const limit = {'5M':100,'15M':80,'1H':80,'4H':90,'1D':60,'1W':52}[activeTimeframe] || 80;
+    const limit = 200; // enough history for EMA50 to converge; the prompt only carries indicator values, so AI cost is unchanged
 
     let freshRaw = null;
 
@@ -2775,7 +2771,7 @@ async function runAnalysis() {
   const cp  = closes[n-1];
 
   // ── ADX(14) ──
-  let freshAdx = 0;
+  let freshAdx = null; // null = too few candles
   try {
     const trueRanges = [], plusDM = [], minusDM = [];
     for (let i = 1; i < n; i++) {
@@ -2799,7 +2795,7 @@ async function runAnalysis() {
       const mDI = 100 * mDM / atr14;
       dxArr.push(100 * Math.abs(pDI - mDI) / ((pDI + mDI) || 1));
     }
-    freshAdx = Math.round(dxArr.slice(-14).reduce((a,b)=>a+b,0) / Math.min(14, dxArr.length));
+    if (dxArr.length) freshAdx = Math.round(dxArr.slice(-14).reduce((a,b)=>a+b,0) / Math.min(14, dxArr.length));
   } catch(e) {}
 
   // ── Bollinger Bands(20) ──
@@ -2845,27 +2841,27 @@ async function runAnalysis() {
   const adx  = freshAdx;
 
 
-  // Fetch Funding Rate from Binance futures
+  // Funding rate — server tries Binance futures then MEXC perps; price check rejects a different coin on the same ticker
   let fundingRate = 'N/A';
   try {
-    const symbol = activeToken.symbol + 'USDT';
-    const frRes = await fetch(`https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&limit=1`).then(r=>r.json());
-    if (Array.isArray(frRes) && frRes[0]) {
-      const fr = parseFloat(frRes[0].fundingRate) * 100;
-      fundingRate = `${fr.toFixed(4)}% ${fr > 0.1 ? '(OVERLEVERAGED LONG — short squeeze risk)' : fr < -0.1 ? '(OVERLEVERAGED SHORT — long squeeze risk)' : '(NEUTRAL)'}`;
+    const frRes = await fetch(`${SERVER}/funding?symbol=${activeToken.symbol}&price=${cp}`).then(r=>r.json());
+    if (typeof frRes.rate === 'number') {
+      const fr = frRes.rate * 100;
+      // positive funding = longs pay shorts = crowded longs = LONG squeeze risk (and vice versa)
+      fundingRate = `${fr.toFixed(4)}% (${frRes.source}) ${fr > 0.1 ? '(OVERLEVERAGED LONG — long squeeze risk)' : fr < -0.1 ? '(OVERLEVERAGED SHORT — short squeeze risk)' : '(NEUTRAL)'}`;
     }
   } catch(e) {}
 
   // Previous Day High/Low/Close (institutional levels)
   let pdLevels = 'N/A';
   try {
-    const symbol = activeToken.symbol + 'USDT';
-    const daily = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1d&limit=2`).then(r=>r.json());
+    // server /candles: same exchange order as the analysis candles, skips delisted pairs
+    const daily = (await fetch(`${SERVER}/candles?symbol=${activeToken.symbol}&interval=1d&limit=60`).then(r=>r.json())).candles; // 60 so the server stops at the first good source
     if (Array.isArray(daily) && daily.length >= 2) {
       const yesterday = daily[daily.length - 2];
-      const pdh = parseFloat(yesterday[2]);
-      const pdl = parseFloat(yesterday[3]);
-      const pdc = parseFloat(yesterday[4]);
+      const pdh = yesterday.h;
+      const pdl = yesterday.l;
+      const pdc = yesterday.c;
       const aboveClose = cp > pdc ? 'ABOVE prev close (bullish)' : 'BELOW prev close (bearish)';
       pdLevels = `PDH: ${fmt(pdh)} | PDL: ${fmt(pdl)} | PDC: ${fmt(pdc)} — Price ${aboveClose}`;
     }
@@ -2939,7 +2935,7 @@ TREND:
 - EMA20: ${fmt(e20[n-1])} — price ${cp>e20[n-1]?'ABOVE (bullish)':'BELOW (bearish)'}
 - EMA50: ${fmt(e50[n-1])} — price ${cp>e50[n-1]?'ABOVE (bullish)':'BELOW (bearish)'}
 - VWAP: ${fmt(vwap)} — price ${cp>vwap?'ABOVE (bullish)':'BELOW (bearish)'}
-- ADX(14): ${adx} ${adx>25?'(STRONG TREND — trade it)':adx>20?'(DEVELOPING TREND)':'(WEAK/RANGING — avoid breakouts)'}
+- ADX(14): ${adx === null ? 'N/A (too few candles)' : `${adx} ${adx>25?'(STRONG TREND — trade it)':adx>20?'(DEVELOPING TREND)':'(WEAK/RANGING — avoid breakouts)'}`}
 
 MOMENTUM:
 - RSI(14): ${rsi} ${rsi>70?'(OVERBOUGHT — caution longs)':rsi<30?'(OVERSOLD — potential bounce)':'(NEUTRAL)'}
@@ -3069,7 +3065,7 @@ VOLUME RULE — read WITH the VOLUME BEHAVIOR section above, never in isolation:
 - Let the VOLUME BEHAVIOR read confirm or veto your direction: distribution/blow-off at the highs confirms a SHORT; accumulation/exhaustion at the lows confirms a LONG.
 
 Respond ONLY with JSON (no markdown):
-{"signal":"LONG or SHORT${degenMode ? '' : ' or NEUTRAL'}","confidence":${degenMode ? '60-95' : '55-95'},"accuracy":55-92,"bias":"punchy uppercase one-liner${degenMode ? ' — aggressive' : ''}","reasoning":"3-4 sentences covering trend, momentum, volume, and key levels","caution":"${degenMode ? '1 sentence max — key risk only' : '1-2 sentences on specific caution flags'}","confirmation":"what needs to happen to confirm the signal","alternative":"what to do if signal fails","entry":"best entry price","target":"take profit price (${mult.t}x ATR from entry — this is calibrated for ${activeTimeframe}, do not tighten it)","stop":"stop loss price (${mult.s}x ATR from entry)","rr_ratio":"risk reward ratio e.g. 1:2","roi":"expected ROI %","position_size":"recommended % of capital${degenMode ? ' — up to 15% on high conviction' : ''}","risk":"LOW or MEDIUM or HIGH","risk_reason":"one sentence explaining risk","sentiment_impact":"one sentence on Fear & Greed and funding rate impact"}`;
+{"signal":"LONG or SHORT${degenMode ? '' : ' or NEUTRAL'}","confidence":${degenMode ? '60-95' : '55-95'},"bias":"punchy uppercase one-liner${degenMode ? ' — aggressive' : ''}","reasoning":"3-4 sentences covering trend, momentum, volume, and key levels","caution":"${degenMode ? '1 sentence max — key risk only' : '1-2 sentences on specific caution flags'}","confirmation":"what needs to happen to confirm the signal","alternative":"what to do if signal fails","entry":"best entry price","target":"take profit price (${mult.t}x ATR from entry — this is calibrated for ${activeTimeframe}, do not tighten it)","stop":"stop loss price (${mult.s}x ATR from entry)","rr_ratio":"risk reward ratio e.g. 1:2","roi":"expected ROI %","position_size":"recommended % of capital${degenMode ? ' — up to 15% on high conviction' : ''}","risk":"LOW or MEDIUM or HIGH","risk_reason":"one sentence explaining risk","sentiment_impact":"one sentence on Fear & Greed and funding rate impact"}`;
 
   try {
     const r=await fetch(`${SERVER}/analyze`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt})});
@@ -3082,25 +3078,33 @@ Respond ONLY with JSON (no markdown):
     // Also auto-correct wrong direction entries
     try {
       const entryP  = parseFloat(a.entry?.toString().replace(/[^0-9.]/g,'')) || 0;
-      const targetP = parseFloat(a.target?.toString().replace(/[^0-9.]/g,'')) || 0;
-      const stopP   = parseFloat(a.stop?.toString().replace(/[^0-9.]/g,'')) || 0;
+      let targetP = parseFloat(a.target?.toString().replace(/[^0-9.]/g,'')) || 0;
+      let stopP   = parseFloat(a.stop?.toString().replace(/[^0-9.]/g,'')) || 0;
       const curP = activeToken?.price || cp; // use live price not last candle close
 
-      // Auto-correct wrong direction entries
+      // Auto-correct wrong direction entries; target and stop shift by the same amount so they keep their distance
+      let finalEntryP = entryP;
+      const moveTo = p => {
+        const d = p - entryP;
+        finalEntryP = p;
+        if (targetP > 0) { targetP += d; a.target = fmt(targetP); }
+        if (stopP > 0)   { stopP   += d; a.stop   = fmt(stopP); }
+      };
       if (entryP > 0 && curP > 0) {
         if (a.signal === 'SHORT' && entryP < curP * 0.99) {
+          moveTo(curP);
           // SHORT entry below current price — wrong, use current price
           a.entry = fmt(curP) + ' (MARKET)';
           a.caution = 'Entry corrected — SHORT entry must be at or above current price. ' + (a.caution || '');
         }
         if (a.signal === 'LONG' && entryP > curP * 1.01) {
+          moveTo(curP);
           // LONG entry above current price — wrong, use current price
           a.entry = fmt(curP) + ' (MARKET)';
           a.caution = 'Entry corrected — LONG entry must be at or below current price. ' + (a.caution || '');
         }
       }
 
-      const finalEntryP = parseFloat(a.entry?.toString().replace(/[^0-9.]/g,'')) || entryP;
       if (finalEntryP > 0 && targetP > 0) {
         let roi, rr;
         if (a.signal === 'LONG') {
@@ -3288,7 +3292,6 @@ function renderResult(a, isSimulated=false, dataSource='BINANCE') {
         <div class="an-lbl">${ico(cls)}${label}</div>
         <div class="an-txt">${body}</div>${extra}
       </section>` : '';
-  const acc = a.accuracy || 70;
 
   document.getElementById('outArea').innerHTML=`
     ${isSimulated ? `
@@ -3299,11 +3302,7 @@ function renderResult(a, isSimulated=false, dataSource='BINANCE') {
     ${buildSignalCard(a, { isSimulated })}
     <div class="an-wrap">
       ${isSimulated ? '' : `<div class="an-src">DATA · ${dataSource}</div>`}
-      ${panel('thesis', 'THESIS', a.reasoning, `
-        <div class="an-meter">
-          <div class="an-meter-top"><span>ACCURACY ESTIMATE</span><b>${acc}%</b></div>
-          <div class="an-meter-bar"><div style="width:${acc}%"></div></div>
-        </div>`)}
+      ${panel('thesis', 'THESIS', a.reasoning)}
       ${panel('sent', 'MARKET SENTIMENT', a.sentiment_impact)}
       ${panel('confirm', 'CONFIRMATION', a.confirmation)}
       ${panel('caution', 'CAUTION', a.caution, a.risk_reason ? `<div class="an-note">${a.risk_reason}</div>` : '')}
